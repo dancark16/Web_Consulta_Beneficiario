@@ -702,7 +702,7 @@ body {
 }
 
 main {
-  max-width: 1400px;
+  max-width: 1450px;
   margin: 20px auto;
   padding: 0 20px;
 }
@@ -975,8 +975,11 @@ td {
 footer {
   text-align: center;
   padding: 20px;
-  color: #666;
-  font-size: 0.8rem;
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  transform: translateY(-2px);
+  
 }
 
 #overlay-cargando {
