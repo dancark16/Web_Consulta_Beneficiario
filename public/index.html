@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Consulta Beneficiario - Administración de Datos</title>
+  <link rel="stylesheet" href="style2.css" />
+  <link rel="icon" type="image/png" href="icopag.png" />
+</head>
+
+<body>
+
+  <div id="overlay-index">
+    <div class="spinner"></div>
+    <p>Consultando información...</p>
+  </div>
+
+  <main class="page">
+
+    <section class="left-section">
+      <div class="circle circle-one"></div>
+      <div class="circle circle-two"></div>
+
+      <div class="left-content">
+        <img src="logo2.png" alt="El Nuevo Ecuador" class="main-logo" />
+
+        <div class="lp-aside__divider">
+          <span class="lp-aside__divider-line"></span>
+          <span class="lp-aside__divider-gem"></span>
+          <span class="lp-aside__divider-line"></span>
+        </div>
+
+        <h1 class="main-title">
+          <span>Reporte</span>
+          <strong>Beneficiario</strong>
+        </h1>
+
+        <p class="main-subtitle">Dirección de Administración de Datos</p>
+      </div>
+    </section>
+
+    <section class="right-section">
+      <div class="card">
+
+        <div class="card-header">
+          <div class="icon-box">🔍</div>
+
+          <div class="card-title">
+            <h2>Consulta Beneficiario</h2>
+            <p>Ingrese una cédula para continuar</p>
+          </div>
+
+          <span class="status-dot"></span>
+        </div>
+
+        <div class="card-body">
+          <label for="cedula">Cédula</label>
+
+          <input type="text" id="cedula" maxlength="10" inputmode="numeric" autocomplete="off"
+            placeholder="Ingrese la cédula (10 dígitos)" />
+
+          <button type="button" id="btn-buscar-index">
+            Buscar Beneficiario
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+  <script src="index.js"></script>
+
+</body>
+
+</html>

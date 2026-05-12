@@ -1,0 +1,392 @@
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+body {
+  background: #f4f5fa;
+}
+
+.page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+/* ================= LADO IZQUIERDO ================= */
+
+.left-section {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #252b86 0%, #30298f 48%, #26217c 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.circle {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  pointer-events: none;
+}
+
+.circle-one {
+  width: 650px;
+  height: 650px;
+  left: -115px;
+  bottom: -105px;
+}
+
+.circle-two {
+  width: 430px;
+  height: 430px;
+  left: 75px;
+  bottom: 65px;
+}
+
+.left-content {
+  position: relative;
+  z-index: 2;
+  width: min(540px, 90%);
+  text-align: center;
+  color: white;
+}
+
+.main-logo {
+  max-width: 85%;
+  margin-bottom: 62px;
+
+  /* Efecto tipo neón */
+  filter:
+    brightness(0) invert(1)
+    drop-shadow(0 0 7px rgba(255, 255, 255, 0.9))
+    drop-shadow(0 0 24px rgba(255, 255, 255, 0.45));
+}
+
+/* ================= DIVISOR CON ESTRELLA ================= */
+
+.lp-aside__divider {
+  width: 72%;
+  margin: 0 auto 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+}
+
+.lp-aside__divider-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.45),
+    transparent
+  );
+}
+
+.lp-aside__divider-gem {
+  width: 11px;
+  height: 11px;
+  background: #ffd32a;
+  transform: rotate(45deg);
+  box-shadow: 0 0 14px rgba(255, 211, 42, 0.95);
+  animation: gemPulse 1.7s ease-in-out infinite;
+}
+
+@keyframes gemPulse {
+  0%,
+  100% {
+    transform: rotate(45deg) scale(1);
+    opacity: 0.75;
+  }
+
+  50% {
+    transform: rotate(45deg) scale(1.35);
+    opacity: 1;
+  }
+}
+
+/* ================= TEXTO IZQUIERDO ================= */
+
+.main-title {
+  margin: 0;
+  font-size: 44px;
+  line-height: 1.08;
+  font-weight: 900;
+}
+
+.main-title span {
+  display: block;
+  color: #ffffff;
+}
+
+.main-title strong {
+  display: block;
+  color: #ffd32a;
+}
+
+.main-subtitle {
+  margin: 16px 0 0;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+/* ================= LADO DERECHO ================= */
+
+.right-section {
+  background: #f4f5fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.card {
+  width: 100%;
+  max-width: 520px;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 28px 60px rgba(28, 31, 54, 0.22);
+}
+
+.card-header {
+  padding: 28px 32px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid #e4e7f0;
+}
+
+.icon-box {
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  background: #302a9f;
+  color: white;
+  display: grid;
+  place-items: center;
+  font-size: 23px;
+  box-shadow: 0 12px 24px rgba(48, 42, 159, 0.35);
+}
+
+.card-title h2 {
+  margin: 0;
+  color: #29278f;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.card-title p {
+  margin: 4px 0 0;
+  color: #8c8fb0;
+  font-size: 13px;
+}
+
+.status-dot {
+  width: 14px;
+  height: 14px;
+  background: #32d27c;
+  border-radius: 50%;
+  box-shadow: 0 0 0 8px rgba(50, 210, 124, 0.15);
+}
+
+.card-body {
+  padding: 28px 32px 34px;
+}
+
+.card-body label {
+  display: block;
+  color: #4c4aa0;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.card-body input {
+  width: 100%;
+  padding: 16px 18px;
+  font-size: 16px;
+  border-radius: 11px;
+  border: 1px solid #cdd3e7;
+  outline: none;
+  background: #f2f4fb;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.card-body input:focus {
+  border-color: #302a9f;
+  box-shadow: 0 0 0 4px rgba(48, 42, 159, 0.12);
+}
+
+.card-body button {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #25217b, #5a54df);
+  color: white;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(48, 42, 159, 0.28);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card-body button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px rgba(48, 42, 159, 0.36);
+}
+
+.btn-brand-yellow {
+  background: linear-gradient(90deg, #f0c419, #ffd94d);
+  color: #2a2200;
+  box-shadow: 0 12px 24px rgba(240, 196, 25, 0.32);
+}
+
+.btn-brand-yellow:hover {
+  box-shadow: 0 16px 30px rgba(240, 196, 25, 0.42);
+}
+
+.btn-brand-purple {
+  background: linear-gradient(90deg, #4f2ca8, #7c56f5);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(79, 44, 168, 0.32);
+}
+
+.btn-brand-purple:hover {
+  box-shadow: 0 16px 30px rgba(79, 44, 168, 0.42);
+}
+
+.btn-brand-yellow,
+.btn-brand-purple {
+  text-decoration: none;
+}
+
+.btn-brand-yellow:hover,
+.btn-brand-purple:hover {
+  transform: translateY(-2px);
+}
+.card-header {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-header::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, #facc15, #0033a0, #ce1126, #facc15);
+  background-size: 300% 100%;
+  animation: waveHeader 4s ease-in-out infinite;
+}
+@keyframes waveHeader {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+/* ================= OVERLAY ================= */
+
+#overlay-index {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.spinner {
+  width: 56px;
+  height: 56px;
+  border: 6px solid #ffffff;
+  border-top-color: #4B0082;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+#overlay-index p {
+  color: #ffffff;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 900px) {
+  .page {
+    grid-template-columns: 1fr;
+  }
+
+  .left-section {
+    min-height: 48vh;
+    padding: 60px 20px;
+  }
+
+  .right-section {
+    min-height: 52vh;
+    padding: 28px 18px;
+  }
+
+  .main-logo {
+    width: 260px;
+    margin-bottom: 38px;
+  }
+
+  .main-title {
+    font-size: 34px;
+  }
+}
+
+@media (max-width: 480px) {
+  .left-section {
+    padding: 48px 16px;
+  }
+
+  .main-logo {
+    width: 230px;
+  }
+
+  .main-title {
+    font-size: 30px;
+  }
+
+  .card {
+    border-radius: 18px;
+  }
+
+  .card-header,
+  .card-body {
+    padding: 24px 22px;
+  }
+}

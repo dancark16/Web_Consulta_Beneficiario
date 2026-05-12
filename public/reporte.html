@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reporte Beneficiario</title>
+    <link rel="icon" type="image/png" href="icopag.png" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <div id="overlay-cargando">
+        <div class="spinner"></div>
+        <p>Consultando información...</p>
+    </div>
+
+    <header class="header-main">
+        <div class="container header-content">
+            <a href="reporte.html" target="_blank" class="logo-link" title="Nuevo reporte en pestaña limpia">
+                <img src="logo2.png" alt="Logo Institucional" class="logo-header" />
+            </a>
+            <div class="header-text">
+                <h1>REPORTE BENEFICIARIO</h1>
+                <p>Ministerio de Desarrollo Humano<br />El Nuevo Ecuador</p>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="search-box">
+            <input type="text" id="cedula" placeholder="Ingrese la cédula (10 dígitos)" maxlength="10"
+                autocomplete="off" />
+            <button id="btn-buscar" class="btn-brand-purple">Buscar</button>
+            <button id="btn-volver" class="btn-brand-purple">Volver al Inicio</button>
+        </div>
+
+        <div class="export-buttons">
+            <button id="btn-exportar-pdf" class="btn-export btn-brand-yellow">Exportar a PDF</button>
+            <button id="btn-exportar-excel" class="btn-export btn-brand-yellow">Exportar a Excel</button>
+        </div>
+        <div class="status-resumen">
+            <div class="status-card">
+                <div class="status-label">Registro Social</div>
+                <div id="valor-registro-social" class="status-value">---</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Estado</div>
+                <div id="valor-estado" class="status-badge">---</div>
+            </div>
+        </div>
+
+        <div id="contenido-dinamico"></div>
+    </main>
+
+    <footer>
+        <p>Dirección de Administración de Datos</p>
+    </footer>
+
+    <script src="libs/jspdf.umd.min.js"></script>
+    <script src="libs/jspdf.plugin.autotable.min.js"></script>
+    <script src="libs/xlsx.full.min.js"></script>
+    <script src="libs/exceljs.min.js"></script>
+
+
+    <script src="reporte.js"></script>
+</body>
+
+</html>
