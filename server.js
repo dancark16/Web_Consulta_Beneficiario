@@ -469,7 +469,7 @@ WHERE rn = 1;
 
     // OPTIMIZACIÓN: Reutilizar request object cuando posible, definir inputs una sola vez
     const createRequest = () => pool.request().input('cedula', sql.VarChar(20), cedula);
-    
+
     const [
       resultDatosGenerales,
       resultCorteUnico,
@@ -586,7 +586,7 @@ WHERE rn = 1;
         WHERE rn = 1
       `)),
     ]);
-    
+
     const datosGeneralesVista = (resultDatosGenerales.recordset && resultDatosGenerales.recordset[0]) || null;
     const datosGeneralesCorte = (resultCorteUnico.recordset && resultCorteUnico.recordset[0]) || null;
 
@@ -769,64 +769,67 @@ WHERE rn = 1;
         fechaencuesta: ['fechaencuesta', 'FECHA_DE_ENCUESTA', 'FECHA ENCUESTA']
       };
 
+      
       for (const [dest, sourceKeys] of Object.entries(overrides)) {
         const fromCorte = pickFirstValue(datosGeneralesCorte, sourceKeys);
         if (fromCorte !== undefined) base[dest] = fromCorte;
       }
 
-      const subsidioRaw = pickFirstValue(datosGeneralesCorte, [
-        'codigo_tipo_subsidio',
-        'CODIGO_TIPO_SUBSIDIO',
-        'subsidio_final',
-        'SUBSIDIO_FINAL',
-        'subsidio',
-        'SUBSIDIO'
-      ]) ?? pickFirstValue(datosGeneralesVista, ['subsidio_final', 'SUBSIDIO_FINAL', 'subsidio', 'SUBSIDIO']);
+      // NUEVO BLOQUE: Validación inteligente de subsidio y excepción
+      // Primero intenta subsidio_final de corte; si vacío, usa codigo_tipo_subsidio de corte; si vacío, usa vista
+      const subsidioCorteRaw = pickFirstValue(datosGeneralesCorte, ['subsidio_final', 'SUBSIDIO_FINAL']);
+      const subsidioCodigoCorte = pickFirstValue(datosGeneralesCorte, ['codigo_tipo_subsidio', 'CODIGO_TIPO_SUBSIDIO']);
+      const subsidioVistaRaw = pickFirstValue(datosGeneralesVista, ['subsidio_final', 'SUBSIDIO_FINAL', 'subsidio', 'SUBSIDIO']);
 
+      const subsidioRaw =
+        (subsidioCorteRaw !== undefined && `${subsidioCorteRaw}`.trim() !== '' ? subsidioCorteRaw : null) ??
+        (subsidioCodigoCorte !== undefined && `${subsidioCodigoCorte}`.trim() !== '' ? subsidioCodigoCorte : null) ??
+        subsidioVistaRaw;
+
+      // Lo mismo para excepción
+      const excepcionCorteRaw = pickFirstValue(datosGeneralesCorte, ['excepcion_final', 'EXCEPCION_FINAL']);
+      const excepcionCodigoCorte = pickFirstValue(datosGeneralesCorte, ['codigo_tipo_excepcion', 'CODIGO_TIPO_EXCEPCION']);
       const excepcionVistaRaw = pickFirstValue(datosGeneralesVista, ['excepcion_final', 'EXCEPCION_FINAL', 'excepcion', 'EXCEPCION']);
-      const excepcionCorteRaw = pickFirstValue(datosGeneralesCorte, [
-        'codigo_tipo_excepcion',
-        'CODIGO_TIPO_EXCEPCION',
-        'excepcion_final',
-        'EXCEPCION_FINAL',
-        'excepcion',
-        'EXCEPCION'
-      ]);
-      const excepcionRaw = pickVistaThenCorte(excepcionVistaRaw, excepcionCorteRaw);
 
-      excepcionCodigoDetectado = resolverCodigoExcepcion(excepcionCorteRaw, excepcionVistaRaw, excepcionRaw);
+      const excepcionRaw =
+        (excepcionCorteRaw !== undefined && `${excepcionCorteRaw}`.trim() !== '' ? excepcionCorteRaw : null) ??
+        (excepcionCodigoCorte !== undefined && `${excepcionCodigoCorte}`.trim() !== '' ? excepcionCodigoCorte : null) ??
+        excepcionVistaRaw;
+
+      excepcionCodigoDetectado = resolverCodigoExcepcion(excepcionCodigoCorte, excepcionCorteRaw, excepcionVistaRaw, excepcionRaw);
 
       base.subsidio_final = mapSubsidioTexto(subsidioRaw);
       base.excepcion_final = mapExcepcionTexto(excepcionRaw);
 
       // Si no hay vista, al menos retornamos el corte para no perder datos.
       return Object.keys(base).length > 0 ? base : { ...(datosGeneralesCorte || {}) };
+
     })();
 
     const datosRS = (resultDatosRS.recordset && resultDatosRS.recordset[0]) || null;
 
 
-     // Normalizar fechas con prioridades unificadas
+    // Normalizar fechas con prioridades unificadas
     if (datosGenerales) {
       const fechasBono = resultFechasBono?.recordset?.[0] ?? {};
-      
+
       // FECHA_INICIO: prioridad 1) resultFechasBono.FECHA_INICIO, 2) datosGenerales.FECHA_INICIO
       const isValidDate = (val) => val && `${val}`.trim() !== '' && `${val}`.toUpperCase() !== 'NULL';
-      
-      datosGenerales.FECHA_INICIO = isValidDate(fechasBono.FECHA_INICIO) 
-        ? fechasBono.FECHA_INICIO 
+
+      datosGenerales.FECHA_INICIO = isValidDate(fechasBono.FECHA_INICIO)
+        ? fechasBono.FECHA_INICIO
         : (isValidDate(datosGenerales.FECHA_INICIO) ? datosGenerales.FECHA_INICIO : null);
-      
+
       // FECHA_FIN: prioridad 1) resultFechasBono.FECHA_FIN, 2) datosGenerales.FECHA_FIN, 3) datosGenerales.FECHA_SALIDA
       datosGenerales.FECHA_FIN = isValidDate(fechasBono.FECHA_FIN)
         ? fechasBono.FECHA_FIN
-        : (isValidDate(datosGenerales.FECHA_FIN) 
-          ? datosGenerales.FECHA_FIN 
+        : (isValidDate(datosGenerales.FECHA_FIN)
+          ? datosGenerales.FECHA_FIN
           : (isValidDate(datosGenerales.FECHA_SALIDA) ? datosGenerales.FECHA_SALIDA : null));
-      
+
       // Eliminar FECHA_SALIDA para evitar inconsistencias (no debe exponerse al frontend)
       delete datosGenerales.FECHA_SALIDA;
-      
+
       // Debug log removido por seguridad (no exponemos cedula)
     }
 
@@ -989,7 +992,7 @@ WHERE rn = 1;
               habilitado: (habPorEstado || habPorCodigo) ? 'SI' : 'NO'
             };
           });
-            console.log(`[TIMING] ingresoHogar(${cedulasHogar.length} miembros): ${Date.now() - tIH}ms`);
+          console.log(`[TIMING] ingresoHogar(${cedulasHogar.length} miembros): ${Date.now() - tIH}ms`);
         } catch (eH) {
           console.warn('Error consultando ingresoHogar:', eH.message);
         }
