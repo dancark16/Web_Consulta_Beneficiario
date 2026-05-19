@@ -219,8 +219,8 @@ app.post('/buscarBeneficiario', limiter, async (req, res) => {
         banda_pobreza,
         FECHA_SALIDA,
         MOTIVO_SALIDA,
-        subsidio_final,
-        excepcion_final,
+        codigo_tipo_subsidio,
+        codigo_tipo_excepcion,
         estado
       FROM dbo.VISTA_REP_DATOS_GENERALES
       WHERE cedula = @cedula
@@ -774,13 +774,24 @@ WHERE rn = 1;
         if (fromCorte !== undefined) base[dest] = fromCorte;
       }
 
-      const subsidioRaw = pickVistaThenCorte(
-        pickFirstValue(datosGeneralesVista, ['subsidio_final', 'SUBSIDIO_FINAL', 'subsidio', 'SUBSIDIO']),
-        pickFirstValue(datosGeneralesCorte, ['subsidio_final', 'SUBSIDIO_FINAL', 'subsidio', 'SUBSIDIO'])
-      );
+      const subsidioRaw = pickFirstValue(datosGeneralesCorte, [
+        'codigo_tipo_subsidio',
+        'CODIGO_TIPO_SUBSIDIO',
+        'subsidio_final',
+        'SUBSIDIO_FINAL',
+        'subsidio',
+        'SUBSIDIO'
+      ]) ?? pickFirstValue(datosGeneralesVista, ['subsidio_final', 'SUBSIDIO_FINAL', 'subsidio', 'SUBSIDIO']);
 
       const excepcionVistaRaw = pickFirstValue(datosGeneralesVista, ['excepcion_final', 'EXCEPCION_FINAL', 'excepcion', 'EXCEPCION']);
-      const excepcionCorteRaw = pickFirstValue(datosGeneralesCorte, ['excepcion_final', 'EXCEPCION_FINAL', 'excepcion', 'EXCEPCION']);
+      const excepcionCorteRaw = pickFirstValue(datosGeneralesCorte, [
+        'codigo_tipo_excepcion',
+        'CODIGO_TIPO_EXCEPCION',
+        'excepcion_final',
+        'EXCEPCION_FINAL',
+        'excepcion',
+        'EXCEPCION'
+      ]);
       const excepcionRaw = pickVistaThenCorte(excepcionVistaRaw, excepcionCorteRaw);
 
       excepcionCodigoDetectado = resolverCodigoExcepcion(excepcionCorteRaw, excepcionVistaRaw, excepcionRaw);
