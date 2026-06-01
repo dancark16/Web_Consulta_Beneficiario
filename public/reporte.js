@@ -304,6 +304,7 @@ function renderizarTodo(data) {
 
     html += generarTablaPuntaje(data);
     html += generarTablaDatosGenerales(data);
+    html += generarBloqueHistorialCobros(data);
     html += generarTablaContactabilidad(data);
 
     // Se oculta sola si no hay nucleo valido
@@ -325,14 +326,335 @@ function renderizarTodo(data) {
     container.innerHTML = html;
 }
 
+function generarBloqueHistorialCobros(data) {
+    const hc = data.historialCobros || {};
+    const bonosCuenta = Array.isArray(hc.bonosPagoCuenta) ? hc.bonosPagoCuenta : [];
+    const bonosVentanilla = Array.isArray(hc.bonosVentanilla) ? hc.bonosVentanilla : [];
+    const milDiasCuenta = Array.isArray(hc.milDiasPagoCuenta) ? hc.milDiasPagoCuenta : [];
+    const milDiasVentanilla = Array.isArray(hc.milDiasVentanilla) ? hc.milDiasVentanilla : [];
+
+    const SUBSIDIO_CATALOGO = {
+        1: { codigo: 'BDH', descripcion: 'BONO DE DESARROLLO HUMANO', monto: 50.00 },
+        2: { codigo: 'PAM', descripcion: 'PENSION ADULTO MAYOR', monto: 50.00 },
+        3: { codigo: 'PDD', descripcion: 'PENSION PERSONAS CON DISCAPACIDAD', monto: 50.00 },
+        4: { codigo: null, descripcion: 'MADRES', monto: null },
+        5: { codigo: 'MMA', descripcion: 'PENSION MIS MEJORES ANOS', monto: 100.00 },
+        6: { codigo: 'BVA', descripcion: 'BONO DE DESARROLLO HUMANO CON COMPONENTE VARIABLE', monto: null },
+        7: { codigo: 'PTUV, PTVA', descripcion: 'PENSION TODA UNA VIDA', monto: 100.00 },
+        8: { codigo: 'PTVM', descripcion: 'PENSION TODA UNA VIDA MENORES', monto: 100.00 },
+        9: { codigo: 'BMD', descripcion: 'BONO 1000 DIAS', monto: null },
+        20: { codigo: null, descripcion: 'DISTRITO METROPOLITANO DE QUITO', monto: null },
+        88: { codigo: null, descripcion: 'JOAQUIN GALLEGOS LARA', monto: 240.00 },
+        99: { codigo: 'BDD', descripcion: 'PENSIÓN MENORES DE EDAD CON DISCAPACIDAD', monto: 50.00 }
+    };
+
+    const SUBSIDIO_POR_SIGLA = Object.values(SUBSIDIO_CATALOGO)
+        .filter((item) => item && item.codigo)
+        .reduce((acc, item) => {
+            `${item.codigo}`
+                .split(',')
+                .map((sigla) => sigla.trim().toUpperCase())
+                .filter(Boolean)
+                .forEach((sigla) => {
+                    acc[sigla] = item.descripcion;
+                });
+            return acc;
+        }, {});
+
+    const EXCEPCION_CATALOGO = {
+        0: 'ABRE TU CUENTA BANCARIA Y COBRA SEGURO TU BONO',
+        1: 'REALICE TRAMITE PENSION EX COMBATIENTES',
+        2: 'NO CUMPLE EDAD PARA BONO 3RA EDAD',
+        3: 'HIJO CUMPLE MAYORIA DE EDAD',
+        4: 'R.CIVIL REPORTA CIUDADANO EXTRANJERO',
+        5: 'FALTA DOCUMENTOS (CEDULA)',
+        6: 'FALTA DOCUMENTOS (PARTIDA)',
+        7: 'INGRESOS MAYORES A 1 MILLON',
+        8: 'CASO NO ACEPTADO/PADRE VIUDO',
+        9: 'CASO NO ACEPTADO/PADRE A CARGO HIJO',
+        10: 'CASO NO ACEPTADO/ABUELO A CARGO NIETO',
+        11: 'DATOS DE HIJO/A NO CORRESPONDEN',
+        12: 'CASO NO ACEPTADO/FAMILIAR DE MENOR',
+        15: 'SOLIC.CON DOC. FALSOS PARTIDA O CEDULA',
+        16: 'CASO NO ACEPT/SOLICIT.CON MENOR ADOPT.',
+        17: 'CASO NO ACEPTADO/HERMANO A CARGO MENOR',
+        18: 'CEDULA EN VERIFICACION',
+        19: 'NUM.CEDULA ERRADO REG.CIV.(DUPLICADA)',
+        20: 'CONSTA EN LA BASE DE IESS',
+        21: 'AFILIADO VOLUNTARIO GANA MAS DEL MILLON',
+        22: 'AFILIADO VOLUNTARIO GANA MAS DE 500 MIL',
+        23: 'UD. ES GARANTE O TIENE CREDITO BANCARIO',
+        24: 'CONYUGE ES GARANTE O TIENE CRD.BANCARIO',
+        25: 'SU CONSUMO DE LUZ ES MAYOR LIMITE BONO',
+        26: 'CONSUMO DE LUZ CONYUG.MAYOR LIMITE BONO',
+        27: 'BENEFICIARIO CON CUENTA EN LA BANCA',
+        28: 'CONYUGE CON CUENTA EN LA BANCA',
+        29: 'CONSTA EN LA BASE DE ISSFA',
+        30: 'CONSTA EN LA BASE DE ISSPOL',
+        31: 'CONSTA EN LA BASE DE DINASED',
+        32: 'USUARIO EN SERVICIO RESIDENCIAL',
+        33: 'CIUDADANO CONSTA EN MUNICIPIO-CATASTRO',
+        34: 'R.CIVIL REPORTA DIGITO VERIFICADOR ERRADO',
+        35: 'CUMPLE CORRESPONSABILIDAD, INGRESO PROGRESIVO',
+        36: 'R.CIVIL REPORTA BENEFICIARIO NO CONSTA EN BASE',
+        37: 'R.CIVIL REPORTA BENEFICIARIO FALLECIDO',
+        38: 'DOCUMENTO DE IDENTIDAD NO VALIDO PARA COBRO',
+        39: 'URGENTE LLAME AL 1800 002 002 ANTES DEL 15 DEL MES',
+        40: 'UD. O CONY. TIENE LINEA TELEFONICA',
+        41: 'INFORMACION NO VERIFICABLE, ACERCARSE AL MIES',
+        44: 'CEDULA NO ESTA VIGENTE PARA COBRO',
+        45: 'CIUDADANO CONSTA EN SRI',
+        46: 'SU CONYUGE COBRA BONO DE MADRE',
+        47: 'FALTA CEDULA CONYUGE',
+        48: 'R.CIVIL REPORTA QUE UD. DEBE ACERCARSE PERSONALMENTE',
+        49: 'FALTA CARNET DEL CONADIS',
+        50: 'NO CALIFICA AL BONO DE DESARROLLO HUMANO',
+        51: 'NO CALIFICA AL BONO DE DESARROLLO HUMANO',
+        52: 'ACERQUESE PERSONALMENTE AL CENTRO DE INFORMACION',
+        53: 'NO CALIFICA AL BONO/PENSION',
+        54: 'BENEFICIARIO CON BLOQUEO TEMPORAL',
+        55: 'JEFE DE FAMILIA YA COBRA EL BONO',
+        56: 'NO CALIFICA AL BONO DE DESARROLLO HUMANO',
+        57: 'FALTA INSCRIPCION LLAME 1800-272727',
+        58: 'SIN ENCUESTA, NUEVO REGISTRO SOCIAL',
+        59: 'SUSPENDIDO POR EDUCACION DE HIJOS LLAME 1800002002',
+        61: 'CDH/AHORRO',
+        70: 'ABRE UNA CUENTA BANCARIA Y COBRA SEGURO TU PENSION',
+        74: 'PARA CONTINUAR COBRANDO TU BONO ABRE UNA CUENTA',
+        75: 'ABRE UNA CUENTA BANCARIA Y COBRA SEGURO TU PENSION',
+        76: 'ABRE UNA CUENTA BANCARIA Y COBRA SEGURO TU BONO',
+        77: 'ABRE UNA CUENTA BANCARIA Y COBRA SEGURO TU PENSION',
+        78: 'SE CORRESPONSABLE, ENVIA A TUS HIJOS A LA ESCUELA',
+        79: 'RETIRE TARJETA PACIFICO GRATIS EN AGENCIA AGUIRRE',
+        88: 'JOAQUIN GALLEGOS LARA',
+        90: 'DISCAPACITADO NO CUMPLE REQUISITOS (MSP)',
+        91: 'MADRE EMBARAZADA',
+        92: 'BONO SUSPENDIDO LLAME 1800 002002-RECIBE JOAQUIN GALLEGOS LARA',
+        93: 'BLOQUEO TEMPORAL BMD POR NO APERTURA DE CUENTA',
+        94: 'BONO SUSPENDIDO LLAME A 1800 002002 - SERVIDOR PUBLICO',
+        99: 'SOLICITUD DE BLOQUEO VOLUNTARIO',
+        200: 'DISTRITO METROPOLITANO DE QUITO',
+        888: 'JOAQUIN GALLEGOS LARA',
+        998: 'UD YA COBRO ADELANTADO',
+        999: 'COBRA REPRESENTANTE ENCUESTA'
+    };
+
+    const formatMonto = (valor) => {
+        if (valor === undefined || valor === null || `${valor}`.trim() === '') return 'NO CONSTA';
+        const num = Number(valor);
+        if (Number.isNaN(num)) return `${valor}`;
+        return `$${num.toFixed(2)}`;
+    };
+
+    const mapBono = (codSubsidio) => {
+        const raw = `${codSubsidio ?? ''}`.trim().toUpperCase();
+        if (!raw) return 'NO CONSTA';
+
+        const codNumerico = Number.parseInt(raw, 10);
+        if (!Number.isNaN(codNumerico) && SUBSIDIO_CATALOGO[codNumerico]) {
+            const item = SUBSIDIO_CATALOGO[codNumerico];
+            return item.codigo ? `${item.codigo} - ${item.descripcion}` : item.descripcion;
+        }
+
+        if (SUBSIDIO_POR_SIGLA[raw]) {
+            return `${raw} - ${SUBSIDIO_POR_SIGLA[raw]}`;
+        }
+
+        return raw;
+    };
+
+    const mapExcepcionFinal = (codStatus) => {
+        const raw = `${codStatus ?? ''}`.trim();
+        if (!raw) return 'NO CONSTA';
+        const cod = Number.parseInt(raw, 10);
+        if (!Number.isNaN(cod) && EXCEPCION_CATALOGO[cod]) {
+            return EXCEPCION_CATALOGO[cod];
+        }
+        return raw;
+    };
+
+    const MESES_ORDEN = {
+        'ENERO': 1,
+        'FEBRERO': 2,
+        'MARZO': 3,
+        'ABRIL': 4,
+        'MAYO': 5,
+        'JUNIO': 6,
+        'JULIO': 7,
+        'AGOSTO': 8,
+        'SEPTIEMBRE': 9,
+        'OCTUBRE': 10,
+        'NOVIEMBRE': 11,
+        'DICIEMBRE': 12
+    };
+
+    const MESES_LISTA = [
+        '', 'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+        'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+    ];
+
+    const extraerAnio = (row) => {
+        const periodo = `${row?.periodo || ''}`.trim().toUpperCase();
+        const matchPeriodo = periodo.match(/(\d{4})$/);
+        if (matchPeriodo) return matchPeriodo[1];
+
+        const fecha = `${row?.fechaCobro || ''}`.trim();
+        const matchFecha = fecha.match(/^(\d{4})-/);
+        return matchFecha ? matchFecha[1] : 'SIN ANIO';
+    };
+
+    const extraerMes = (row) => {
+        const periodo = `${row?.periodo || ''}`.trim().toUpperCase();
+        const matchPeriodo = periodo.match(/^(.+?)\s+\d{4}$/);
+        if (matchPeriodo) return matchPeriodo[1].trim();
+
+        const fecha = `${row?.fechaCobro || ''}`.trim();
+        const matchFecha = fecha.match(/^\d{4}-(\d{2})-/);
+        if (matchFecha) {
+            const idx = Number.parseInt(matchFecha[1], 10);
+            return MESES_LISTA[idx] || 'MES N/D';
+        }
+
+        return 'MES N/D';
+    };
+
+    const generarTablaHistorial = (rows, titulo) => {
+        if (!rows.length) {
+            return '';
+        }
+
+        const rowsByAnio = rows.reduce((acc, row) => {
+            const anio = extraerAnio(row);
+            if (!acc[anio]) acc[anio] = [];
+            acc[anio].push(row);
+            return acc;
+        }, {});
+
+        const aniosOrdenados = Object.keys(rowsByAnio).sort((a, b) => {
+            if (a === 'SIN ANIO') return 1;
+            if (b === 'SIN ANIO') return -1;
+            return Number.parseInt(b, 10) - Number.parseInt(a, 10);
+        });
+
+        return `
+            <div class="historial-identificador">${escapeHTML(titulo)}</div>
+            <div class="historial-anios-wrap">
+                ${aniosOrdenados.map((anio, indexAnio) => {
+                    const registrosAnio = rowsByAnio[anio] || [];
+                    const registrosOrdenados = [...registrosAnio].sort((ra, rb) => {
+                        const mesA = MESES_ORDEN[extraerMes(ra)] || 0;
+                        const mesB = MESES_ORDEN[extraerMes(rb)] || 0;
+                        return mesB - mesA;
+                    });
+
+                    return `
+                        <details class="historial-anio" ${indexAnio === 0 ? 'open' : ''}>
+                            <summary class="historial-anio-toggle">${escapeHTML(anio)} (${registrosOrdenados.length})</summary>
+                            <div class="table-wrapper">
+                                <table class="tabla-historial-cobros">
+                                    <thead>
+                                        <tr>
+                                            <th>MES</th>
+                                            <th>BONO</th>
+                                            <th>MONTO</th>
+                                            <th>FECHA COBRO</th>
+                                            <th>EXCEPCION FINAL</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${registrosOrdenados.map((row) => `
+                                            <tr>
+                                                <td><span class="mes-pill">${escapeHTML(extraerMes(row))}</span></td>
+                                                <td><span class="bono-pill">${escapeHTML(mapBono(row.codSubsidio))}</span></td>
+                                                <td><span class="monto-pill">${escapeHTML(formatMonto(row.monto))}</span></td>
+                                                <td><span class="fecha-pill">${escapeHTML(`${row.fechaCobro || ''}`.trim()) || 'NO CONSTA'}</span></td>
+                                                <td><span class="excepcion-pill">${escapeHTML(mapExcepcionFinal(row.codStatus))}</span></td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    };
+
+    if (!hc.enabled || hc.available === false) {
+        return `
+            <div class="section-header">HISTORIAL DE COBROS</div>
+            <details class="historial-cobros">
+                <summary class="historial-cobros-toggle"><span class="historial-label-ver">Ver historial de cobros</span><span class="historial-label-ocultar">Ocultar historial de cobros</span></summary>
+                <div class="historial-cobros-contenido">
+                    <div class="table-wrapper">
+                        <table>
+                            <tbody>
+                                <tr><td class="text-center">${escapeHTML(hc.message || 'Historial de cobros no disponible en este momento.')}</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
+        `;
+    }
+
+    const seccionesHistorial = [
+        generarTablaHistorial(bonosCuenta, 'PAGO EN CUENTA BONOS'),
+        generarTablaHistorial(bonosVentanilla, 'PAGO EN VENTANILLA BONOS'),
+        generarTablaHistorial(milDiasCuenta, '1000 DIAS PAGO EN CUENTA'),
+        generarTablaHistorial(milDiasVentanilla, '1000 DIAS VENTANILLA')
+    ].filter(Boolean);
+
+    if (!seccionesHistorial.length) {
+        return `
+        <div class="section-header">HISTORIAL DE COBROS</div>
+        <details class="historial-cobros">
+            <summary class="historial-cobros-toggle"><span class="historial-label-ver">Ver historial de cobros</span><span class="historial-label-ocultar">Ocultar historial de cobros</span></summary>
+            <div class="historial-cobros-contenido">
+                <div class="table-wrapper">
+                    <table>
+                        <tbody>
+                            <tr><td class="text-center">SIN REGISTROS DE HISTORIAL</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+    `;
+    }
+
+    return `
+        <div class="section-header">HISTORIAL DE COBROS</div>
+        <details class="historial-cobros">
+            <summary class="historial-cobros-toggle"><span class="historial-label-ver">Ver historial de cobros</span><span class="historial-label-ocultar">Ocultar historial de cobros</span></summary>
+            <div class="historial-cobros-contenido">
+                ${seccionesHistorial.join('')}
+            </div>
+        </details>
+    `;
+}
+
 function generarTablaDatosGenerales(data) {
     const dg = data.datosGenerales || data.datosRS || {};
     const inclusion = data.inclusionFlags || {};
+    const decilRaw = [
+        dg.decil,
+        dg.DECIL,
+        dg.decil_rs,
+        dg.DECIL_RS,
+        dg['[decil]'],
+        dg['decil '],
+        dg['DECIL ']
+    ].find((v) => v !== undefined && v !== null && `${v}`.trim() !== '');
+    const decil = decilRaw !== undefined ? `${decilRaw}` : 'NO CONSTA';
 
     const campos = [
         { label: 'CEDULA', value: escapeHTML(dg.cedula) || 'NO CONSTA' },
-        { label: 'APELLIDOS', value: escapeHTML(dg.apellidos) || 'NO CONSTA' },
+        { label: 'FECHA NACIMIENTO', value: formatearFecha(dg.fecha_nacimiento_rs || dg.fechanacimiento) },
         { label: 'NOMBRES', value: escapeHTML(dg.nombres) || 'NO CONSTA' },
+        { label: 'APELLIDOS', value: escapeHTML(dg.apellidos) || 'NO CONSTA' },
+        { label: 'FECHA ENCUESTA', value: formatearFecha(dg.fechaencuesta) },
         {
             label: 'PUNTAJE RS', value: (() => {
                 const pVal = dg.puntaje || dg.puntajers2014 || 'NO CONSTA';
@@ -342,11 +664,10 @@ function generarTablaDatosGenerales(data) {
                     : pVal;
             })()
         },
-        { label: 'FECHA NACIMIENTO', value: formatearFecha(dg.fecha_nacimiento_rs || dg.fechanacimiento) },
-        { label: 'EDAD', value: dg.edad_rs || dg.edad_persona || 'NO CONSTA' },
-        { label: 'FECHA ENCUESTA', value: formatearFecha(dg.fechaencuesta) },
-        { label: 'BANDA POBREZA', value: dg.banda_pobreza || 'NO CONSTA' },
         { label: 'CONDICION CEDULADO', value: dg.condicion_cedulado_rc || 'NO CONSTA' },
+        { label: 'EDAD', value: dg.edad_rs || dg.edad_persona || 'NO CONSTA' },
+        { label: 'BANDA POBREZA', value: dg.banda_pobreza || 'NO CONSTA' },
+        { label: 'DECIL', value: escapeHTML(`${decil}`) || 'NO CONSTA' },
         { label: 'SUBSIDIO FINAL', value: dg.subsidio_final || 'NO CONSTA' },
         { label: 'EXCEPCION FINAL', value: dg.excepcion_final || 'NO CONSTA' },
         // JORDY CHILA NUEVOS CAMPOS (FECHAS DESDE SC_CED_BEN_TOTAL)
@@ -356,16 +677,23 @@ function generarTablaDatosGenerales(data) {
         { label: 'GRUPO INCLUSION', value: inclusion.GRUPO_INCLUSION || 'NO CONSTA' }
     ];
 
+    const filas = [];
+    for (let i = 0; i < campos.length; i += 2) {
+        filas.push([campos[i], campos[i + 1] || null]);
+    }
+
     return `
                     <div class="section-header">DATOS GENERALES</div>
                     <div class="table-wrapper">
                         <table class="tabla-datos-generales">
                            
                             <tbody>
-                                ${campos.map(campo => `
+                                ${filas.map(([campoA, campoB]) => `
                                     <tr>
-                                        <td class="dg-label"><span>${campo.label}</span></td>
-                                        <td class="dg-value">${campo.value}</td>
+                                        <td class="dg-label"><span>${campoA.label}</span></td>
+                                        <td class="dg-value">${campoA.value}</td>
+                                        <td class="dg-label ${campoB ? '' : 'dg-empty'}"><span>${campoB ? campoB.label : ''}</span></td>
+                                        <td class="dg-value ${campoB ? '' : 'dg-empty'}">${campoB ? campoB.value : ''}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -665,6 +993,10 @@ function obtenerSeccionesOrdenExportacion() {
     const ORDEN_PREFERIDO = [
         'HISTORIAL DE PUNTAJE RS',
         'DATOS GENERALES',
+        'HISTORIAL DE COBROS PAGO EN CUENTA BONOS',
+        'HISTORIAL DE COBROS PAGO EN VENTANILLA BONOS',
+        'HISTORIAL DE COBROS 1000 DIAS PAGO EN CUENTA',
+        'HISTORIAL DE COBROS 1000 DIAS VENTANILLA',
         'DIRECCION Y CONTACTO',
         'NUCLEO FAMILIAR',
         'REPRESENTANTE MENOR CON DISCAPACIDAD',

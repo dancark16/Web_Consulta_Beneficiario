@@ -17,6 +17,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.1",
     "helmet": "^8.1.0",
-    "mssql": "^12.2.1"
+    "mssql": "^12.2.1",
+    "oracledb": "^6.10.0"
   }
 }

@@ -1,9 +1,50 @@
 const express = require('express');
 const cors = require('cors');
 const sql = require('mssql');
+const fs = require('fs');
+const path = require('path');
+require('dotenv').config();
+
+let oracledb = null;
+let oracleDriverReady = false;
+let oracleDriverReason = 'Oracle no inicializado.';
+
+try {
+  // Carga de driver Oracle
+  oracledb = require('oracledb');
+
+  // Forzar Thick mode para compatibilidad con BD Oracle antiguas (evita NJS-138 en Thin)
+  const oracleClientLibDir = [
+    `${process.env.ORACLE_CLIENT_LIB_DIR || ''}`.trim(),
+    'C:\\oracle\\instantclient_19_22',
+    'C:\\oracle\\instantclient_21_13'
+  ].find((dir) => dir && fs.existsSync(path.join(dir, 'oci.dll'))) || '';
+
+  try {
+    if (oracleClientLibDir) {
+      oracledb.initOracleClient({ libDir: oracleClientLibDir });
+    } else {
+      // Si no se define ORACLE_CLIENT_LIB_DIR, intenta usar PATH del sistema
+      oracledb.initOracleClient();
+    }
+
+    oracleDriverReady = true;
+    oracleDriverReason = '';
+    console.log('[ORACLE] Thick mode inicializado correctamente');
+  } catch (clientErr) {
+    oracleDriverReady = false;
+    oracleDriverReason = `No se pudo inicializar Instant Client (Thick): ${clientErr.message}`;
+    console.warn('[ORACLE] ' + oracleDriverReason);
+  }
+
+  oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
+} catch (oracleErr) {
+  oracleDriverReady = false;
+  oracleDriverReason = `Driver no disponible: ${oracleErr.message}`;
+  console.warn('[ORACLE] Historial de cobros deshabilitado:', oracleDriverReason);
+}
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-require('dotenv').config();
 
 const app = express();
 
@@ -118,6 +159,264 @@ const dbServers = [
 
 let poolPromise = null;
 let currentDbServer = null;
+let oraclePoolPromise = null;
+
+const oracleConfig = {
+  user: process.env.ORACLE_USER,
+  password: process.env.ORACLE_PASSWORD,
+  connectString: process.env.ORACLE_CONNECT_STRING || process.env.ORACLE_DSN || '192.168.201:1521/ppsorapr',
+  poolMin: 0,
+  poolMax: 4,
+  poolIncrement: 1,
+  poolTimeout: 60,
+};
+
+const hasOracleConfig = () => (
+  !!oracledb &&
+  oracleDriverReady &&
+  !!oracleConfig.user &&
+  !!oracleConfig.password &&
+  !!oracleConfig.connectString
+);
+
+async function getOraclePool() {
+  if (!hasOracleConfig()) {
+    return null;
+  }
+
+  if (oraclePoolPromise) {
+    return oraclePoolPromise;
+  }
+
+  oraclePoolPromise = (async () => {
+    console.log('[ORACLE] Inicializando pool');
+    return oracledb.createPool(oracleConfig);
+  })();
+
+  try {
+    return await oraclePoolPromise;
+  } catch (err) {
+    oraclePoolPromise = null;
+    throw err;
+  }
+}
+
+function normalizarCodigoben(valor) {
+  const raw = `${valor ?? ''}`;
+  return raw.replace(/\D/g, '');
+}
+
+function toIsoDate(value) {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
+function inferirEsMilDias(codSubsidio) {
+  const cod = `${codSubsidio || ''}`.trim().toUpperCase().replace(/\s+/g, '');
+  return /1000|BMD/.test(cod);
+}
+
+function inferirCanalPago(histRow) {
+  const tieneReferencias = [histRow?.MID, histRow?.TID, histRow?.REFERENCIA]
+    .some((v) => v !== undefined && v !== null && `${v}`.trim() !== '');
+  return tieneReferencias ? 'CUENTA' : 'VENTANILLA';
+}
+
+function buildPeriodoLabel(codPeriodo, codSubperiodo) {
+  const periodo = Number.parseInt(`${codPeriodo ?? ''}`, 10);
+  const subperiodo = Number.parseInt(`${codSubperiodo ?? ''}`, 10);
+  const meses = [
+    '', 'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+    'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+  ];
+
+  if (!Number.isNaN(periodo) && !Number.isNaN(subperiodo) && subperiodo >= 1 && subperiodo <= 12) {
+    const anioFiscal = 2011 + periodo;
+    return `${meses[subperiodo]} ${anioFiscal}`;
+  }
+
+  return `PERIODO ${codPeriodo || 'N/D'} - SUBPERIODO ${codSubperiodo || 'N/D'}`;
+}
+
+function withTimeout(promise, ms, message) {
+  let timer = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+
+  return Promise.race([promise, timeoutPromise])
+    .finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+}
+
+async function obtenerHistorialCobrosOracle(cedula) {
+  const emptyResponse = {
+    enabled: false,
+    available: false,
+    message: oracleDriverReason || 'Historial de cobros no configurado.',
+    beneficiario: null,
+    bonosPagoCuenta: [],
+    bonosVentanilla: [],
+    milDiasPagoCuenta: [],
+    milDiasVentanilla: []
+  };
+
+  if (!hasOracleConfig()) {
+    return emptyResponse;
+  }
+
+  const pool = await getOraclePool();
+  if (!pool) {
+    return emptyResponse;
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const oracleCallTimeoutMs = Number.parseInt(`${process.env.ORACLE_QUERY_TIMEOUT_MS || '7000'}`, 10) || 7000;
+    connection.callTimeout = oracleCallTimeoutMs;
+
+    const beneficiarioRs = await connection.execute(
+      `
+        SELECT
+          CODIGOBEN,
+          CODSUBSIDIO,
+          CEDULA,
+          NOMBRES,
+          MONTO,
+          FECHAINICIO,
+          FECHAFIN,
+          FECHAREGISTRO
+        FROM TB_BENEFICIARIO_PERMANENTE
+        WHERE CEDULA = :cedula
+          AND ROWNUM = 1
+      `,
+      { cedula }
+    );
+
+    const beneficiario = beneficiarioRs.rows && beneficiarioRs.rows[0] ? beneficiarioRs.rows[0] : null;
+    if (!beneficiario) {
+      return {
+        ...emptyResponse,
+        enabled: true,
+        available: true,
+        message: 'No existe CODIGOBEN en Oracle para la cedula consultada.'
+      };
+    }
+
+    const codigoBenRaw = `${beneficiario.CODIGOBEN ?? ''}`.trim();
+    const codigoBenNormalizado = normalizarCodigoben(beneficiario.CODIGOBEN);
+    if (!codigoBenNormalizado) {
+      return {
+        ...emptyResponse,
+        enabled: true,
+        available: true,
+        message: 'CODIGOBEN invalido en Oracle.',
+        beneficiario
+      };
+    }
+
+    const qHistorialBase = `
+      SELECT
+        CODIGOBEN,
+        CODSUBSIDIO,
+        CODPERIODO,
+        CODSUBPERIODO,
+        MONTO,
+        FLAGPAGO,
+        CODSTATUS,
+        CODACCION,
+        FECHACOBRO,
+        CODREPRES,
+        MID,
+        TID,
+        REFERENCIA,
+        FECHAREGISTRO
+      FROM TB_HISTORIAL_PERMANENTE_ACUM
+    `;
+
+    let rows = [];
+
+    // Primera opcion (rapida): comparar con CODIGOBEN exacto devuelto por Oracle.
+    const historialExactoRs = await connection.execute(
+      `${qHistorialBase}
+       WHERE CODIGOBEN = :codigoBenExacto
+       ORDER BY TO_NUMBER(CODPERIODO) DESC, TO_NUMBER(CODSUBPERIODO) DESC`,
+      { codigoBenExacto: codigoBenRaw }
+    );
+    rows = historialExactoRs.rows || [];
+
+    // Fallback: algunos registros guardan CODIGOBEN en otro formato (con/sin puntos).
+    if (!rows.length) {
+      const historialNormalizadoRs = await connection.execute(
+        `${qHistorialBase}
+         WHERE REPLACE(TO_CHAR(CODIGOBEN), '.', '') = :codigoBenNormalizado
+         ORDER BY TO_NUMBER(CODPERIODO) DESC, TO_NUMBER(CODSUBPERIODO) DESC`,
+        { codigoBenNormalizado: codigoBenNormalizado }
+      );
+      rows = historialNormalizadoRs.rows || [];
+    }
+    const cobros = rows
+      .filter((r) => {
+        const flagPago = `${r.FLAGPAGO ?? ''}`.trim();
+        const codStatus = `${r.CODSTATUS ?? ''}`.trim();
+        return !!r.FECHACOBRO || flagPago === '2' || codStatus === '77';
+      })
+      .map((r) => {
+        const esMilDias = inferirEsMilDias(r.CODSUBSIDIO);
+        const canal = inferirCanalPago(r);
+        return {
+          codigoben: `${r.CODIGOBEN ?? ''}`.trim(),
+          codSubsidio: `${r.CODSUBSIDIO ?? ''}`.trim(),
+          codPeriodo: `${r.CODPERIODO ?? ''}`.trim(),
+          codSubperiodo: `${r.CODSUBPERIODO ?? ''}`.trim(),
+          periodo: buildPeriodoLabel(r.CODPERIODO, r.CODSUBPERIODO),
+          monto: r.MONTO,
+          flagPago: `${r.FLAGPAGO ?? ''}`.trim(),
+          codStatus: `${r.CODSTATUS ?? ''}`.trim(),
+          codAccion: `${r.CODACCION ?? ''}`.trim(),
+          fechaCobro: toIsoDate(r.FECHACOBRO),
+          fechaRegistro: toIsoDate(r.FECHAREGISTRO),
+          referencia: `${r.REFERENCIA ?? ''}`.trim() || null,
+          mid: `${r.MID ?? ''}`.trim() || null,
+          tid: `${r.TID ?? ''}`.trim() || null,
+          codRepres: `${r.CODREPRES ?? ''}`.trim() || null,
+          tipoPrograma: esMilDias ? '1000_DIAS' : 'BONOS',
+          canalPago: canal
+        };
+      });
+
+    return {
+      enabled: true,
+      available: true,
+      message: null,
+      beneficiario: {
+        codigoben: `${beneficiario.CODIGOBEN ?? ''}`.trim(),
+        cedula: `${beneficiario.CEDULA ?? ''}`.trim(),
+        nombres: `${beneficiario.NOMBRES ?? ''}`.trim(),
+        codSubsidio: `${beneficiario.CODSUBSIDIO ?? ''}`.trim(),
+        monto: beneficiario.MONTO ?? null,
+        fechaInicio: toIsoDate(beneficiario.FECHAINICIO),
+        fechaFin: toIsoDate(beneficiario.FECHAFIN),
+        fechaRegistro: toIsoDate(beneficiario.FECHAREGISTRO)
+      },
+      bonosPagoCuenta: cobros.filter((r) => r.tipoPrograma === 'BONOS' && r.canalPago === 'CUENTA'),
+      bonosVentanilla: cobros.filter((r) => r.tipoPrograma === 'BONOS' && r.canalPago === 'VENTANILLA'),
+      milDiasPagoCuenta: cobros.filter((r) => r.tipoPrograma === '1000_DIAS' && r.canalPago === 'CUENTA'),
+      milDiasVentanilla: cobros.filter((r) => r.tipoPrograma === '1000_DIAS' && r.canalPago === 'VENTANILLA')
+    };
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeErr) {
+        console.warn('[ORACLE] No se pudo cerrar la conexion:', closeErr.message);
+      }
+    }
+  }
+}
 
 function buildDbConfig(server) {
   return {
@@ -204,6 +503,26 @@ app.post('/buscarBeneficiario', limiter, async (req, res) => {
     }
     const tablaCorteActual = `[192.168.98.210].[SippsDataBono].[dbo].[${tablaCorteNombre}]`;
 
+    const qColumnasVistaDatosGenerales = `
+      SELECT UPPER(c.name) AS col
+      FROM sys.columns c
+      INNER JOIN sys.objects o ON o.object_id = c.object_id
+      INNER JOIN sys.schemas s ON s.schema_id = o.schema_id
+      WHERE s.name = 'dbo'
+        AND o.name = 'VISTA_REP_DATOS_GENERALES'
+    `;
+
+    const rColumnasVistaDatosGenerales = await pool.request().query(qColumnasVistaDatosGenerales);
+    const columnasVistaDatosGenerales = new Set((rColumnasVistaDatosGenerales.recordset || []).map((r) => `${r.col || ''}`.trim().toUpperCase()));
+
+    const colCodigoTipoSubsidio = columnasVistaDatosGenerales.has('CODIGO_TIPO_SUBSIDIO')
+      ? 'codigo_tipo_subsidio'
+      : 'CAST(NULL AS VARCHAR(50)) AS codigo_tipo_subsidio';
+
+    const colCodigoTipoExcepcion = columnasVistaDatosGenerales.has('CODIGO_TIPO_EXCEPCION')
+      ? 'codigo_tipo_excepcion'
+      : 'CAST(NULL AS VARCHAR(50)) AS codigo_tipo_excepcion';
+
     const qDatosGenerales = `
       SELECT TOP (1)
         registroSocial,
@@ -219,8 +538,8 @@ app.post('/buscarBeneficiario', limiter, async (req, res) => {
         banda_pobreza,
         FECHA_SALIDA,
         MOTIVO_SALIDA,
-        codigo_tipo_subsidio,
-        codigo_tipo_excepcion,
+        ${colCodigoTipoSubsidio},
+        ${colCodigoTipoExcepcion},
         estado
       FROM dbo.VISTA_REP_DATOS_GENERALES
       WHERE cedula = @cedula
@@ -482,16 +801,7 @@ WHERE rn = 1;
       resultContactabilidad,
       resultFechasBono,
     ] = await Promise.all([
-      tq('datosGenerales', createRequest().query(`
-        SELECT TOP (1)
-          registroSocial, edad_rs, nucleo, fecha_nacimiento_rs, fechaencuesta, cedula,
-          condicion_cedulado_rc, nombres, apellidos, puntaje, FECHA_DE_ENCUESTA, banda_pobreza,
-          FECHA_SALIDA, MOTIVO_SALIDA, subsidio_final, excepcion_final, estado
-        FROM dbo.VISTA_REP_DATOS_GENERALES
-        WHERE cedula = @cedula
-        ORDER BY CASE WHEN TRY_CONVERT(INT, registroSocial) BETWEEN 2000 AND 2100 THEN 0 ELSE 1 END,
-                 TRY_CONVERT(DATE, COALESCE(fechaencuesta, FECHA_DE_ENCUESTA)) DESC
-      `)),
+      tq('datosGenerales', createRequest().query(qDatosGenerales)),
       tq('corteUnico', createRequest().query(qCorteUnico)),
       tq('datosRS', createRequest().query(`
         SELECT TOP (1) cedula, apellidos, nombres, certificado, puntajers2014, numeronucleo,
@@ -665,6 +975,7 @@ WHERE rn = 1;
       57: 'FALTA INSCRIPCION LLAME 1800-272727',
       58: 'SIN ENCUESTA, NUEVO REGISTRO SOCIAL',
       59: 'SUSPENDIDO POR EDUCACION DE HIJOS LLAME 1800002002',
+      61: 'CDH/AHORRO',
       70: 'ABRE UNA CUENTA BANCARIA Y COBRA SEGURO TU PENSION',
       74: 'PARA CONTINUAR COBRANDO TU BONO ABRE UNA CUENTA',
       75: 'ABRE UNA CUENTA BANCARIA Y COBRA SEGURO TU PENSION',
@@ -688,16 +999,16 @@ WHERE rn = 1;
     const SUBSIDIO_CATALOGO = {
       1: { codigo: 'BDH', descripcion: 'BONO DE DESARROLLO HUMANO', monto: 50.00 },
       2: { codigo: 'PAM', descripcion: 'PENSION ADULTO MAYOR', monto: 50.00 },
-      3: { codigo: 'PCD', descripcion: 'PENSION PERSONAS CON DISCAPACIDAD', monto: 50.00 },
+      3: { codigo: 'PDD', descripcion: 'PENSION PERSONAS CON DISCAPACIDAD', monto: 50.00 },
       4: { codigo: null, descripcion: 'MADRES', monto: null },
       5: { codigo: 'MMA', descripcion: 'PENSION MIS MEJORES ANOS', monto: 100.00 },
-      6: { codigo: 'BVA', descripcion: 'BDH VARIABLE', monto: null },
-      7: { codigo: 'PTVA', descripcion: 'PENSION TODA UNA VIDA (A)', monto: 100.00 },
-      8: { codigo: 'PTUV', descripcion: 'PENSION TODA UNA VIDA', monto: 100.00 },
+      6: { codigo: 'BVA', descripcion: 'BONO DE DESARROLLO HUMANO CON COMPONENTE VARIABLE', monto: null },
+      7: { codigo: 'PTUV, PTVA', descripcion: 'PENSION TODA UNA VIDA', monto: 100.00 },
+      8: { codigo: 'PTVM', descripcion: 'PENSION TODA UNA VIDA MENORES', monto: 100.00 },
       9: { codigo: 'BMD', descripcion: 'BONO 1000 DIAS', monto: null },
       20: { codigo: null, descripcion: 'DISTRITO METROPOLITANO DE QUITO', monto: null },
-      88: { codigo: null, descripcion: 'JOAQUIN GALLEGOS LARA', monto: null },
-      99: { codigo: 'PCD', descripcion: 'PENSION PERSONAS CON DISCAPACIDAD', monto: 50.00 }
+      88: { codigo: null, descripcion: 'JOAQUIN GALLEGOS LARA', monto: 240.00 },
+      99: { codigo: 'BDD', descripcion: 'PENSIÓN MENORES DE EDAD CON DISCAPACIDAD', monto: 50.00 }
     };
 
     const parseCodigo = (value) => {
@@ -766,10 +1077,11 @@ WHERE rn = 1;
         FECHA_SALIDA: ['FECHA_SALIDA', 'fecha_salida', 'FECHA SALIDA'],
         MOTIVO_SALIDA: ['MOTIVO_SALIDA', 'motivo_salida', 'MOTIVO SALIDA'],
         banda_pobreza: ['banda_pobreza', 'BANDA_POBREZA'],
+        decil: ['decil', 'DECIL', '[decil]', '[DECIL]', 'decil_rs', 'DECIL_RS', 'decil rs', 'DECIL RS', 'decil ', 'DECIL '],
         fechaencuesta: ['fechaencuesta', 'FECHA_DE_ENCUESTA', 'FECHA ENCUESTA']
       };
 
-      
+
       for (const [dest, sourceKeys] of Object.entries(overrides)) {
         const fromCorte = pickFirstValue(datosGeneralesCorte, sourceKeys);
         if (fromCorte !== undefined) base[dest] = fromCorte;
@@ -777,9 +1089,23 @@ WHERE rn = 1;
 
       // NUEVO BLOQUE: Validación inteligente de subsidio y excepción
       // Primero intenta subsidio_final de corte; si vacío, usa codigo_tipo_subsidio de corte; si vacío, usa vista
-      const subsidioCorteRaw = pickFirstValue(datosGeneralesCorte, ['subsidio_final', 'SUBSIDIO_FINAL']);
+      const subsidioCorteRaw = pickFirstValue(datosGeneralesCorte, [
+        'subsidio_final',
+        'SUBSIDIO_FINAL',
+        'cod_subsidiofinal',
+        'COD_SUBSIDIOFINAL',
+        'subsidio_EDMBEN',
+        'SUBSIDIO_EDMBEN'
+      ]);
       const subsidioCodigoCorte = pickFirstValue(datosGeneralesCorte, ['codigo_tipo_subsidio', 'CODIGO_TIPO_SUBSIDIO']);
-      const subsidioVistaRaw = pickFirstValue(datosGeneralesVista, ['subsidio_final', 'SUBSIDIO_FINAL', 'subsidio', 'SUBSIDIO']);
+      const subsidioVistaRaw = pickFirstValue(datosGeneralesVista, [
+        'codigo_tipo_subsidio',
+        'CODIGO_TIPO_SUBSIDIO',
+        'subsidio_final',
+        'SUBSIDIO_FINAL',
+        'subsidio',
+        'SUBSIDIO'
+      ]);
 
       const subsidioRaw =
         (subsidioCorteRaw !== undefined && `${subsidioCorteRaw}`.trim() !== '' ? subsidioCorteRaw : null) ??
@@ -787,9 +1113,23 @@ WHERE rn = 1;
         subsidioVistaRaw;
 
       // Lo mismo para excepción
-      const excepcionCorteRaw = pickFirstValue(datosGeneralesCorte, ['excepcion_final', 'EXCEPCION_FINAL']);
+      const excepcionCorteRaw = pickFirstValue(datosGeneralesCorte, [
+        'excepcion_final',
+        'EXCEPCION_FINAL',
+        'excepcion fina',
+        'EXCEPCION FINA',
+        'excepcion_EDMBEN',
+        'EXCEPCION_EDMBEN'
+      ]);
       const excepcionCodigoCorte = pickFirstValue(datosGeneralesCorte, ['codigo_tipo_excepcion', 'CODIGO_TIPO_EXCEPCION']);
-      const excepcionVistaRaw = pickFirstValue(datosGeneralesVista, ['excepcion_final', 'EXCEPCION_FINAL', 'excepcion', 'EXCEPCION']);
+      const excepcionVistaRaw = pickFirstValue(datosGeneralesVista, [
+        'codigo_tipo_excepcion',
+        'CODIGO_TIPO_EXCEPCION',
+        'excepcion_final',
+        'EXCEPCION_FINAL',
+        'excepcion',
+        'EXCEPCION'
+      ]);
 
       const excepcionRaw =
         (excepcionCorteRaw !== undefined && `${excepcionCorteRaw}`.trim() !== '' ? excepcionCorteRaw : null) ??
@@ -1078,6 +1418,46 @@ WHERE rn = 1;
       });
     }
 
+    let historialCobros = {
+      enabled: false,
+      available: false,
+      message: 'Historial de cobros no consultado.',
+      beneficiario: null,
+      bonosPagoCuenta: [],
+      bonosVentanilla: [],
+      milDiasPagoCuenta: [],
+      milDiasVentanilla: []
+    };
+
+    const oracleHistorialEnabled = `${process.env.ORACLE_HISTORIAL_ENABLED || 'true'}`.toLowerCase() !== 'false';
+    if (oracleHistorialEnabled) {
+      try {
+        const oracleTimeoutMs = Number.parseInt(`${process.env.ORACLE_QUERY_TIMEOUT_MS || '7000'}`, 10) || 7000;
+        const tOracle0 = Date.now();
+        historialCobros = await withTimeout(
+          obtenerHistorialCobrosOracle(cedula),
+          oracleTimeoutMs,
+          `Oracle excedio el tiempo maximo de ${oracleTimeoutMs}ms`
+        );
+        console.log(`[TIMING] oracleHistorial: ${Date.now() - tOracle0}ms`);
+      } catch (oracleErr) {
+        console.warn('[ORACLE] Error consultando historial de cobros:', oracleErr.message);
+        historialCobros = {
+          ...historialCobros,
+          enabled: true,
+          available: false,
+          message: `No se pudo consultar Oracle en este momento. ${oracleErr.message || ''}`.trim()
+        };
+      }
+    } else {
+      historialCobros = {
+        ...historialCobros,
+        enabled: false,
+        available: false,
+        message: 'Historial de cobros Oracle deshabilitado temporalmente por configuracion.'
+      };
+    }
+
     return res.json({
       success: true,
       cedula,
@@ -1095,7 +1475,8 @@ WHERE rn = 1;
       historialEventos,
       registroSocialCorte,
       inclusionFlags,
-      reactivacion
+      reactivacion,
+      historialCobros
     });
   } catch (err) {
     console.error('Error en /buscarBeneficiario:', err.message || err);

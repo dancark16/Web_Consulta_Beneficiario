@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Source+Sans+3:wght@400;500;600&display=swap');
+
 * {
   margin: 0;
   padding: 0;
@@ -955,6 +957,297 @@ td {
   text-align: center;
 }
 
+.historial-cobros {
+  margin: 14px 20px 18px 20px;
+  border-radius: 10px;
+  border: 1px solid #d8def3;
+  background: #f7f9ff;
+  overflow: hidden;
+}
+
+.historial-cobros-toggle {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(90deg, #25217b, #5a54df);
+}
+
+.historial-cobros-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.historial-cobros-toggle::before {
+  content: '▸';
+  margin-right: 8px;
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.historial-cobros[open] .historial-cobros-toggle::before {
+  transform: rotate(90deg);
+}
+
+.historial-cobros-contenido {
+  padding: 8px 0 12px 0;
+}
+
+.historial-label-ocultar {
+  display: none;
+}
+
+.historial-cobros[open] .historial-label-ver {
+  display: none;
+}
+
+.historial-cobros[open] .historial-label-ocultar {
+  display: inline;
+}
+
+.historial-identificador {
+  margin: 14px 20px 8px 20px;
+  padding: 0 0 0 14px;
+  color: #34278a;
+  font-family: 'Montserrat', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  position: relative;
+}
+
+.historial-identificador::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: #6a49dd;
+}
+
+.historial-anios-wrap {
+  margin: 0 20px;
+}
+
+.historial-anio {
+  border: 1px solid #d8def3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f9f9ff;
+  margin: 10px 0;
+}
+
+.historial-anio-toggle {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 14px;
+  font-family: 'Montserrat', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #2f2280;
+  background: linear-gradient(90deg, #ece8ff, #f6f4ff);
+  border-bottom: 1px solid #dcd5ff;
+}
+
+.historial-anio-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.historial-anio-toggle::before {
+  content: '▸';
+  margin-right: 8px;
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.historial-anio[open] .historial-anio-toggle::before {
+  transform: rotate(90deg);
+}
+
+.tabla-historial-cobros th,
+.tabla-historial-cobros td {
+  vertical-align: top;
+}
+
+.tabla-historial-cobros {
+  border: 1px solid #d4dbf3;
+  box-shadow: 0 10px 24px rgba(18, 37, 89, 0.1);
+}
+
+.tabla-historial-cobros th {
+  font-family: 'Montserrat', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #2c168e, #3a1ea4);
+  border-bottom: 1px solid #4632b3;
+}
+
+.tabla-historial-cobros td {
+  font-family: 'Source Sans 3', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 1.02rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  color: #1f2540;
+  background: #fdfdff;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.tabla-historial-cobros tbody tr:nth-child(even) td {
+  background: #f6f8ff;
+}
+
+.tabla-historial-cobros tbody tr:hover td {
+  background: #eef3ff;
+}
+
+.tabla-historial-cobros td:nth-child(2) {
+  font-weight: 600;
+  color: #202a64;
+}
+
+.tabla-historial-cobros td:nth-child(5) {
+  color: #3a2d59;
+}
+
+.tabla-historial-cobros .periodo-pill,
+.tabla-historial-cobros .mes-pill,
+.tabla-historial-cobros .bono-pill,
+.tabla-historial-cobros .monto-pill,
+.tabla-historial-cobros .fecha-pill,
+.tabla-historial-cobros .excepcion-pill {
+  display: inline-block;
+}
+
+.tabla-historial-cobros .periodo-pill {
+  background: #edf0ff;
+  border: 1px solid #d4dbff;
+  color: #2f3770;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.tabla-historial-cobros .mes-pill {
+  background: #edf0ff;
+  border: 1px solid #d4dbff;
+  color: #2f3770;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.tabla-historial-cobros .bono-pill {
+  background: linear-gradient(90deg, #eef0ff, #f7f5ff);
+  border-left: 4px solid #5b47d6;
+  border-radius: 10px;
+  padding: 5px 9px;
+}
+
+.tabla-historial-cobros .monto-pill {
+  font-variant-numeric: tabular-nums;
+  background: #e9fff3;
+  border: 1px solid #bcf2d5;
+  color: #0f6a3f;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-weight: 700;
+}
+
+.tabla-historial-cobros .fecha-pill {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: #243b73;
+  font-weight: 600;
+}
+
+.tabla-historial-cobros .excepcion-pill {
+  background: #f6edff;
+  border: 1px solid #e0d0ff;
+  color: #5a2f8f;
+  border-radius: 10px;
+  padding: 4px 9px;
+}
+
+.tabla-historial-cobros th:nth-child(1),
+.tabla-historial-cobros td:nth-child(1) {
+  width: 14%;
+  min-width: 130px;
+}
+
+.tabla-historial-cobros th:nth-child(2),
+.tabla-historial-cobros td:nth-child(2) {
+  width: 34%;
+  min-width: 260px;
+}
+
+.tabla-historial-cobros th:nth-child(3),
+.tabla-historial-cobros td:nth-child(3) {
+  width: 10%;
+  min-width: 90px;
+  white-space: nowrap;
+}
+
+.tabla-historial-cobros th:nth-child(4),
+.tabla-historial-cobros td:nth-child(4) {
+  width: 14%;
+  min-width: 120px;
+  white-space: nowrap;
+}
+
+.tabla-historial-cobros th:nth-child(5),
+.tabla-historial-cobros td:nth-child(5) {
+  width: 28%;
+  min-width: 300px;
+}
+
+#contenido-dinamico .table-wrapper > table:not(.tabla-historial-cobros):not(.tabla-datos-generales) {
+  border: 1px solid #d8d3f5;
+  box-shadow: 0 10px 24px rgba(62, 33, 126, 0.1);
+  background: #ffffff;
+}
+
+#contenido-dinamico .table-wrapper > table:not(.tabla-historial-cobros):not(.tabla-datos-generales) td {
+  font-family: 'Source Sans 3', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 1rem;
+  color: #231f45;
+  border-bottom: 1px solid #e6e2f8;
+  background: linear-gradient(180deg, #fcfbff 0%, #f7f5ff 100%);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#contenido-dinamico .table-wrapper > table:not(.tabla-historial-cobros):not(.tabla-datos-generales) tbody tr:nth-child(odd) td {
+  background: linear-gradient(180deg, #fcfbff 0%, #f7f5ff 100%);
+}
+
+#contenido-dinamico .table-wrapper > table:not(.tabla-historial-cobros):not(.tabla-datos-generales) tbody tr:nth-child(even) td {
+  background: linear-gradient(180deg, #f7f4ff 0%, #f1ecff 100%);
+}
+
+#contenido-dinamico .table-wrapper > table:not(.tabla-historial-cobros):not(.tabla-datos-generales) tbody tr:hover td {
+  background: #ece6ff;
+  box-shadow: inset 0 1px 0 rgba(118, 94, 214, 0.18), inset 0 -1px 0 rgba(118, 94, 214, 0.18);
+}
+
+#contenido-dinamico .table-wrapper > table:not(.tabla-historial-cobros):not(.tabla-datos-generales) td:first-child {
+  font-weight: 700;
+  color: #2b2870;
+  box-shadow: inset 4px 0 0 #6c4ce6;
+}
+
+#contenido-dinamico .table-wrapper > table:not(.tabla-historial-cobros):not(.tabla-datos-generales) td.text-center {
+  font-weight: 600;
+  color: #3c3374;
+}
+
 .link-ver-reporte {
   display: inline-block;
   padding: 6px 8px;
@@ -1313,7 +1606,7 @@ main .tabla-datos-generales td {
 }
 
 main .tabla-datos-generales td.dg-label {
-  width: 32%;
+  width: 18%;
   background: linear-gradient(90deg, #e9f1f8 0%, #e2ecf6 100%);
   border-left: 4px solid #1f5f8b;
 }
@@ -1328,10 +1621,16 @@ main .tabla-datos-generales td.dg-label span {
 }
 
 main .tabla-datos-generales td.dg-value {
+  width: 32%;
   font-family: "Segoe UI", "Calibri", sans-serif;
   font-size: inherit;
   font-weight: 600;
   color: #1a3147;
+}
+
+main .tabla-datos-generales td.dg-empty {
+  background: #f6f8fc;
+  border-left: none;
 }
 
 @media (max-width: 640px) {
@@ -1342,7 +1641,11 @@ main .tabla-datos-generales td.dg-value {
   }
 
   main .tabla-datos-generales td.dg-label {
-    width: 40%;
+    width: 26%;
+  }
+
+  main .tabla-datos-generales td.dg-value {
+    width: 24%;
   }
 
   main .table-wrapper tbody td {
