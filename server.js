@@ -3,7 +3,27 @@ const cors = require('cors');
 const sql = require('mssql');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
+const dotenv = require('dotenv');
+
+// Cargar .env de forma robusta aun si el proceso inicia desde otro directorio.
+const envCandidates = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(__dirname, '.env')
+];
+
+let envLoadedFrom = null;
+for (const envPath of envCandidates) {
+  if (!fs.existsSync(envPath)) continue;
+  const result = dotenv.config({ path: envPath, override: true });
+  if (!result.error) {
+    envLoadedFrom = envPath;
+    break;
+  }
+}
+
+if (!envLoadedFrom) {
+  console.warn('[ENV] No se pudo cargar archivo .env desde rutas candidatas.');
+}
 
 let oracledb = null;
 let oracleDriverReady = false;
