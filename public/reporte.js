@@ -324,9 +324,22 @@ function renderizarTodo(data) {
     html += generarTablaBasesExternas(data);
 
     container.innerHTML = html;
+
+    const btnHistorialPdf = document.getElementById('btn-exportar-historial-pdf');
+    const btnHistorialExcel = document.getElementById('btn-exportar-historial-excel');
+    if (btnHistorialPdf) btnHistorialPdf.addEventListener('click', exportarHistorialPDF);
+    if (btnHistorialExcel) btnHistorialExcel.addEventListener('click', exportarHistorialExcel);
 }
 
 function generarBloqueHistorialCobros(data) {
+        const accionesExportacionHistorial = `
+            <div class="historial-export-actions" role="group" aria-label="Exportar historial de cobros">
+                <span class="historial-export-label">EXPORTAR HISTORIAL -&gt;</span>
+                <button type="button" id="btn-exportar-historial-pdf" class="btn-export-historial btn-brand-yellow">PDF</button>
+                <button type="button" id="btn-exportar-historial-excel" class="btn-export-historial btn-brand-purple">EXCEL</button>
+            </div>
+        `;
+
     const hc = data.historialCobros || {};
     const bonosCuenta = Array.isArray(hc.bonosPagoCuenta) ? hc.bonosPagoCuenta : [];
     const bonosVentanilla = Array.isArray(hc.bonosVentanilla) ? hc.bonosVentanilla : [];
@@ -523,6 +536,24 @@ function generarBloqueHistorialCobros(data) {
             return '';
         }
 
+        const isVentanilla = `${titulo || ''}`.toUpperCase().includes('VENTANILLA');
+        const tieneDatosVentanillaCompletos = (row) => {
+            const provincia = `${row?.provincia || ''}`.trim();
+            const ciudad = `${row?.ciudad || ''}`.trim();
+            const parroquia = `${row?.parroquia || ''}`.trim();
+            const banco = `${row?.banco || ''}`.trim();
+            const agencia = `${row?.agencia || ''}`.trim();
+            const direccionAgencia = `${row?.direccionAgencia || ''}`.trim();
+            return !!(provincia || ciudad || parroquia || banco || agencia || direccionAgencia);
+        };
+        const mostrarColumnasVentanilla = isVentanilla;
+        const valorDetalle = (valor, fallback = null) => {
+            const principal = `${valor || ''}`.trim();
+            if (principal) return principal;
+            const alterno = `${fallback || ''}`.trim();
+            return alterno || 'NO CONSTA';
+        };
+
         const rowsByAnio = rows.reduce((acc, row) => {
             const anio = extraerAnio(row);
             if (!acc[anio]) acc[anio] = [];
@@ -551,13 +582,21 @@ function generarBloqueHistorialCobros(data) {
                         <details class="historial-anio" ${indexAnio === 0 ? 'open' : ''}>
                             <summary class="historial-anio-toggle">${escapeHTML(anio)} (${registrosOrdenados.length})</summary>
                             <div class="table-wrapper">
-                                <table class="tabla-historial-cobros">
+                                <table class="tabla-historial-cobros ${mostrarColumnasVentanilla ? 'ventanilla-detalle' : ''}">
                                     <thead>
                                         <tr>
                                             <th>MES</th>
                                             <th>BONO</th>
                                             <th>MONTO</th>
                                             <th>FECHA COBRO</th>
+                                            ${mostrarColumnasVentanilla ? `
+                                            <th>PROVINCIA</th>
+                                            <th>CANTON</th>
+                                            <th>PARROQUIA</th>
+                                            <th>BANCO</th>
+                                            <th>AGENCIA</th>
+                                            <th>DIRECCION AGENCIA</th>
+                                            ` : ''}
                                             <th>EXCEPCION FINAL</th>
                                         </tr>
                                     </thead>
@@ -568,6 +607,14 @@ function generarBloqueHistorialCobros(data) {
                                                 <td><span class="bono-pill">${escapeHTML(mapBono(row.codSubsidio))}</span></td>
                                                 <td><span class="monto-pill">${escapeHTML(formatMonto(row.monto))}</span></td>
                                                 <td><span class="fecha-pill">${escapeHTML(`${row.fechaCobro || ''}`.trim()) || 'NO CONSTA'}</span></td>
+                                                ${mostrarColumnasVentanilla ? `
+                                                <td><span class="fecha-pill">${escapeHTML(valorDetalle(row.provincia))}</span></td>
+                                                <td><span class="fecha-pill">${escapeHTML(valorDetalle(row.canton, row.ciudad))}</span></td>
+                                                <td><span class="fecha-pill">${escapeHTML(valorDetalle(row.parroquia))}</span></td>
+                                                <td><span class="fecha-pill">${escapeHTML(valorDetalle(row.banco))}</span></td>
+                                                <td><span class="fecha-pill">${escapeHTML(valorDetalle(row.agencia))}</span></td>
+                                                <td><span class="fecha-pill">${escapeHTML(valorDetalle(row.direccionAgencia))}</span></td>
+                                                ` : ''}
                                                 <td><span class="excepcion-pill">${escapeHTML(mapExcepcionFinal(row.codStatus))}</span></td>
                                             </tr>
                                         `).join('')}
@@ -587,6 +634,7 @@ function generarBloqueHistorialCobros(data) {
             <details class="historial-cobros">
                 <summary class="historial-cobros-toggle"><span class="historial-label-ver">Ver historial de cobros</span><span class="historial-label-ocultar">Ocultar historial de cobros</span></summary>
                 <div class="historial-cobros-contenido">
+                    ${accionesExportacionHistorial}
                     <div class="table-wrapper">
                         <table>
                             <tbody>
@@ -612,6 +660,7 @@ function generarBloqueHistorialCobros(data) {
         <details class="historial-cobros">
             <summary class="historial-cobros-toggle"><span class="historial-label-ver">Ver historial de cobros</span><span class="historial-label-ocultar">Ocultar historial de cobros</span></summary>
             <div class="historial-cobros-contenido">
+                ${accionesExportacionHistorial}
                 <div class="table-wrapper">
                     <table>
                         <tbody>
@@ -629,6 +678,7 @@ function generarBloqueHistorialCobros(data) {
         <details class="historial-cobros">
             <summary class="historial-cobros-toggle"><span class="historial-label-ver">Ver historial de cobros</span><span class="historial-label-ocultar">Ocultar historial de cobros</span></summary>
             <div class="historial-cobros-contenido">
+                ${accionesExportacionHistorial}
                 ${seccionesHistorial.join('')}
             </div>
         </details>
@@ -1063,6 +1113,317 @@ function clonarTablaSinAcciones(tabla) {
     return copia;
 }
 
+function obtenerSeccionesHistorialExportacion() {
+    const contenedor = document.querySelector('#contenido-dinamico .historial-cobros .historial-cobros-contenido');
+    if (!contenedor) return [];
+
+    const bloques = Array.from(contenedor.querySelectorAll('.historial-identificador'));
+    const secciones = [];
+
+    bloques.forEach((bloque) => {
+        const tituloBase = (bloque.textContent || '').trim();
+        const wrapAnios = bloque.nextElementSibling;
+        if (!wrapAnios || !wrapAnios.classList.contains('historial-anios-wrap')) return;
+
+        const anios = Array.from(wrapAnios.querySelectorAll('.historial-anio'));
+        anios.forEach((anioDetalle) => {
+            const tabla = anioDetalle.querySelector('table');
+            if (!tabla) return;
+            const anioTitulo = (anioDetalle.querySelector('.historial-anio-toggle')?.textContent || '').trim();
+            const titulo = anioTitulo
+                ? `HISTORIAL DE COBROS ${tituloBase} - ${anioTitulo}`
+                : `HISTORIAL DE COBROS ${tituloBase}`;
+            secciones.push({ titulo, tabla });
+        });
+    });
+
+    return secciones;
+}
+
+function obtenerNombreBeneficiario() {
+    const dg = datosGlobales?.datosGenerales || datosGlobales?.datosRS || {};
+    const nombre = `${dg.nombres || ''}`.trim();
+    const apellido = `${dg.apellidos || ''}`.trim();
+    return `${nombre} ${apellido}`.trim() || 'NO CONSTA';
+}
+
+function formatearTituloExcelSeccion(titulo) {
+    const base = `${titulo || ''}`.trim();
+    const upper = base.toUpperCase();
+    if (!upper.startsWith('HISTORIAL DE COBROS')) {
+        return upper;
+    }
+
+    const candidatos = base.match(/(19\d{2}|20\d{2})/g) || [];
+    if (candidatos.length) return candidatos[candidatos.length - 1];
+
+    return '';
+}
+
+function extraerAnioSeccionHistorial(titulo) {
+    const base = `${titulo || ''}`;
+    const candidatos = base.match(/(19\d{2}|20\d{2})/g) || [];
+    if (!candidatos.length) return Number.MAX_SAFE_INTEGER;
+    return Number.parseInt(candidatos[candidatos.length - 1], 10);
+}
+
+function ordenarSeccionesHistorialAsc(secciones) {
+    return [...(secciones || [])].sort((a, b) => {
+        const aHist = `${a?.titulo || ''}`.toUpperCase().startsWith('HISTORIAL DE COBROS');
+        const bHist = `${b?.titulo || ''}`.toUpperCase().startsWith('HISTORIAL DE COBROS');
+
+        if (!aHist && !bHist) return 0;
+        if (!aHist || !bHist) return 0;
+
+        const anioA = extraerAnioSeccionHistorial(a.titulo);
+        const anioB = extraerAnioSeccionHistorial(b.titulo);
+        if (anioA !== anioB) return anioB - anioA;
+
+        return `${b.titulo || ''}`.localeCompare(`${a.titulo || ''}`);
+    });
+}
+
+function prepararTablaParaExportacion(tabla, tituloSeccion) {
+    const copia = clonarTablaSinAcciones(tabla);
+    const tituloUpper = `${tituloSeccion || ''}`.toUpperCase();
+    const esHistorial = tituloUpper.startsWith('HISTORIAL DE COBROS');
+    if (!esHistorial) return copia;
+
+    const headerTh = copia.querySelector('thead tr th:last-child');
+    const headerActual = `${headerTh?.textContent || ''}`.trim().toUpperCase();
+    if (headerActual !== 'EXCEPCION FINAL') {
+        return tabla;
+    }
+
+    const esVentanilla = tituloUpper.includes('VENTANILLA');
+    const textoPago = esVentanilla ? 'PAGO EN VENTANILLA' : 'PAGO EN CUENTA';
+
+    if (headerTh) {
+        headerTh.textContent = 'TIPO DE PAGO';
+    }
+
+    copia.querySelectorAll('tbody tr').forEach((tr) => {
+        const td = tr.querySelector('td:last-child');
+        if (td) {
+            td.textContent = textoPago;
+        }
+    });
+
+    return copia;
+}
+
+function obtenerDataTablaParaExport(tabla) {
+    if (tabla && Array.isArray(tabla._exportColumns) && Array.isArray(tabla._exportRows)) {
+        return {
+            columnas: [...tabla._exportColumns],
+            filas: [...tabla._exportRows.map((r) => [...r])]
+        };
+    }
+
+    const headers = Array.from(tabla.querySelectorAll('thead th')).map((th) => `${th.innerText || ''}`.trim());
+    const filas = Array.from(tabla.querySelectorAll('tbody tr')).map((tr) =>
+        Array.from(tr.querySelectorAll('td')).map((td) => `${td.innerText || ''}`.trim())
+    );
+    return { columnas: headers, filas };
+}
+
+function obtenerMetaTituloHistorial(titulo) {
+    const upper = `${titulo || ''}`.toUpperCase();
+    const candidatos = `${titulo || ''}`.match(/(19\d{2}|20\d{2})/g) || [];
+    const anio = candidatos.length ? Number.parseInt(candidatos[candidatos.length - 1], 10) : null;
+    const tipoPago = upper.includes('VENTANILLA') ? 'PAGO EN VENTANILLA' : 'PAGO EN CUENTA';
+    return { anio, tipoPago };
+}
+
+function normalizarHeaderHistorial(texto) {
+    return `${texto || ''}`
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toUpperCase();
+}
+
+function extraerAnioDesdeCobro(row) {
+    const fecha = `${row?.fechaCobro || ''}`.trim();
+    const mf = fecha.match(/^(19\d{2}|20\d{2})-/);
+    if (mf) return Number.parseInt(mf[1], 10);
+
+    const periodo = `${row?.periodo || ''}`.trim();
+    const mp = periodo.match(/(19\d{2}|20\d{2})$/);
+    if (mp) return Number.parseInt(mp[1], 10);
+
+    return null;
+}
+
+function extraerMesDesdeCobro(row) {
+    const periodo = `${row?.periodo || ''}`.trim().toUpperCase();
+    const matchPeriodo = periodo.match(/^(.+?)\s+\d{4}$/);
+    if (matchPeriodo) return matchPeriodo[1].trim();
+
+    const fecha = `${row?.fechaCobro || ''}`.trim();
+    const matchFecha = fecha.match(/^\d{4}-(\d{2})-/);
+    if (matchFecha) {
+        const MESES_LISTA = [
+            '', 'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+            'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+        ];
+        const idx = Number.parseInt(matchFecha[1], 10);
+        return MESES_LISTA[idx] || 'NO CONSTA';
+    }
+
+    return 'NO CONSTA';
+}
+
+function formatearMontoCobro(valor) {
+    if (valor === undefined || valor === null || `${valor}`.trim() === '') return 'NO CONSTA';
+    const num = Number(valor);
+    if (Number.isNaN(num)) return `${valor}`;
+    return `$${num.toFixed(2)}`;
+}
+
+function mapBonoExport(codSubsidio) {
+    const raw = `${codSubsidio ?? ''}`.trim().toUpperCase();
+    if (!raw) return 'NO CONSTA';
+
+    const catalogo = {
+        BDH: 'BONO DE DESARROLLO HUMANO',
+        PAM: 'PENSION ADULTO MAYOR',
+        PDD: 'PENSION PERSONAS CON DISCAPACIDAD',
+        MMA: 'PENSION MIS MEJORES ANOS',
+        BVA: 'BONO DE DESARROLLO HUMANO CON COMPONENTE VARIABLE',
+        PTUV: 'PENSION TODA UNA VIDA',
+        PTVA: 'PENSION TODA UNA VIDA',
+        PTVM: 'PENSION TODA UNA VIDA MENORES',
+        BMD: 'BONO 1000 DIAS',
+        BDD: 'PENSION MENORES DE EDAD CON DISCAPACIDAD'
+    };
+
+    if (catalogo[raw]) {
+        return `${raw} - ${catalogo[raw]}`;
+    }
+
+    return raw;
+}
+
+function extraerFilasHistorialDesdeDatos(tipoPago, rows) {
+    return (rows || []).map((row) => ({
+        _anio: extraerAnioDesdeCobro(row),
+        MES: extraerMesDesdeCobro(row),
+        BONO: mapBonoExport(row?.codSubsidio),
+        MONTO: formatearMontoCobro(row?.monto),
+        'FECHA COBRO': `${row?.fechaCobro || ''}`.trim() || 'NO CONSTA',
+        PROVINCIA: `${row?.provincia || ''}`.trim() || 'NO CONSTA',
+        CANTON: `${row?.canton || row?.ciudad || ''}`.trim() || 'NO CONSTA',
+        PARROQUIA: `${row?.parroquia || ''}`.trim() || 'NO CONSTA',
+        BANCO: `${row?.banco || ''}`.trim() || 'NO CONSTA',
+        AGENCIA: `${row?.agencia || ''}`.trim() || 'NO CONSTA',
+        'DIRECCION AGENCIA': `${row?.direccionAgencia || ''}`.trim() || 'NO CONSTA',
+        'TIPO DE PAGO': tipoPago
+    }));
+}
+
+function construirTablaHistorialConsolidada(rows) {
+    const tieneDetalleVentanilla = (rows || []).some((row) => {
+        const vals = [
+            `${row.PROVINCIA || ''}`.trim(),
+            `${row.CANTON || ''}`.trim(),
+            `${row.PARROQUIA || ''}`.trim(),
+            `${row.BANCO || ''}`.trim(),
+            `${row.AGENCIA || ''}`.trim(),
+            `${row['DIRECCION AGENCIA'] || ''}`.trim()
+        ];
+        return vals.some((v) => v && v !== 'NO CONSTA');
+    });
+
+    const columnasBase = ['MES', 'BONO', 'MONTO', 'FECHA COBRO'];
+    const columnasDetalle = ['PROVINCIA', 'CANTON', 'PARROQUIA', 'BANCO', 'AGENCIA', 'DIRECCION AGENCIA'];
+    const columnas = [
+        ...columnasBase,
+        ...(tieneDetalleVentanilla ? columnasDetalle : []),
+        'TIPO DE PAGO'
+    ];
+    const tabla = document.createElement('table');
+    const thead = document.createElement('thead');
+    const trHead = document.createElement('tr');
+    columnas.forEach((col) => {
+        const th = document.createElement('th');
+        th.textContent = col;
+        trHead.appendChild(th);
+    });
+    thead.appendChild(trHead);
+    tabla.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    rows.forEach((row) => {
+        const tr = document.createElement('tr');
+        columnas.forEach((col) => {
+            const td = document.createElement('td');
+            td.textContent = `${row[col] || 'NO CONSTA'}`;
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    tabla.appendChild(tbody);
+
+    tabla._exportColumns = [...columnas];
+    tabla._exportRows = rows.map((row) => columnas.map((col) => `${row[col] || 'NO CONSTA'}`));
+
+    return tabla;
+}
+
+function consolidarSeccionesHistorialPorAnio(secciones) {
+    const entrada = [...(secciones || [])];
+    const mapa = new Map();
+
+    const hc = datosGlobales?.historialCobros || {};
+    const filasCuentaBonos = extraerFilasHistorialDesdeDatos('PAGO EN CUENTA', hc.bonosPagoCuenta || []);
+    const filasVentanillaBonos = extraerFilasHistorialDesdeDatos('PAGO EN VENTANILLA', hc.bonosVentanilla || []);
+    const filasCuentaMil = extraerFilasHistorialDesdeDatos('PAGO EN CUENTA', hc.milDiasPagoCuenta || []);
+    const filasVentanillaMil = extraerFilasHistorialDesdeDatos('PAGO EN VENTANILLA', hc.milDiasVentanilla || []);
+    const filasHistorial = [
+        ...filasCuentaBonos,
+        ...filasVentanillaBonos,
+        ...filasCuentaMil,
+        ...filasVentanillaMil
+    ];
+
+    filasHistorial.forEach((row) => {
+        const anio = row._anio;
+        if (!anio) return;
+        if (!mapa.has(anio)) mapa.set(anio, []);
+        mapa.get(anio).push(row);
+    });
+
+    const seccionesHistorialConsolidadas = [...mapa.entries()]
+        .sort((a, b) => b[0] - a[0])
+        .map(([anio, rows]) => {
+            const limpia = rows.map(({ _anio, ...resto }) => resto);
+            return {
+                titulo: `HISTORIAL DE COBROS ${anio}`,
+                tabla: construirTablaHistorialConsolidada(limpia)
+            };
+        });
+
+    const salida = [];
+    let insertadoHistorial = false;
+    entrada.forEach((seccion) => {
+        const tituloUpper = `${seccion?.titulo || ''}`.toUpperCase();
+        const esHistorial = tituloUpper.startsWith('HISTORIAL DE COBROS');
+
+        if (esHistorial) {
+            if (!insertadoHistorial) {
+                salida.push(...seccionesHistorialConsolidadas);
+                insertadoHistorial = true;
+            }
+            return;
+        }
+
+        salida.push(seccion);
+    });
+
+    return salida;
+}
+
 async function exportarPDF() {
     if (!datosGlobales) {
         alert('Primero busque un beneficiario');
@@ -1075,9 +1436,9 @@ async function exportarPDF() {
         const cedula = document.getElementById('cedula').value;
         const fecha = new Date().toLocaleString('es-EC');
 
-        const COLOR_PRINCIPAL = [90, 0, 157];
-        const COLOR_OSCURO = [26, 58, 92];
-        const COLOR_PURPLE = [111, 66, 193];
+        const COLOR_CABECERA = [90, 0, 157];
+        const COLOR_SECCION = [44, 22, 142];
+        const COLOR_FILA_ALTERNA = [246, 244, 255];
         const ANCHO_PAGINA = 287;
 
         const generarPDF = (logoDataUrl) => {
@@ -1108,7 +1469,7 @@ async function exportarPDF() {
 
             let y = 30;
 
-            doc.setFillColor(245, 245, 255);
+            doc.setFillColor(246, 244, 255);
             doc.roundedRect(10, y, 128, 18, 2, 2, 'F');
             doc.setTextColor(120, 120, 120);
             doc.setFontSize(7);
@@ -1134,15 +1495,19 @@ async function exportarPDF() {
             y += 24;
 
             // ── Secciones ─────────────────────────────────────────
-            const SECCIONES_PURPLE = new Set(['REPRESENTANTE MENOR CON DISCAPACIDAD', 'BASES EXTERNAS']);
-            const secciones = obtenerSeccionesOrdenExportacion();
+            const secciones = consolidarSeccionesHistorialPorAnio(
+                ordenarSeccionesHistorialAsc(obtenerSeccionesOrdenExportacion())
+            );
             const seccionWrappers = Array.from(document.querySelectorAll('#contenido-dinamico .table-wrapper'));
 
             for (const seccion of secciones) {
                 const titulo = seccion.titulo;
                 const tabla = seccion.tabla;
-                const tablaParaPdf = clonarTablaSinAcciones(tabla);
-                const colorBarra = SECCIONES_PURPLE.has(titulo) ? COLOR_PURPLE : COLOR_OSCURO;
+                const tablaParaPdf = prepararTablaParaExportacion(tabla, titulo);
+                const dataTabla = obtenerDataTablaParaExport(tablaParaPdf);
+                const colorBarra = COLOR_SECCION;
+                const tituloBarra = formatearTituloExcelSeccion(titulo);
+                const esHistorial = `${titulo || ''}`.toUpperCase().startsWith('HISTORIAL DE COBROS');
 
                 if (y + 18 > 195) { doc.addPage(); y = 15; }
 
@@ -1150,17 +1515,23 @@ async function exportarPDF() {
                 doc.rect(10, y, 277, 6, 'F');
                 doc.setTextColor(255, 255, 255);
                 doc.setFont('helvetica', 'bold');
-                doc.setFontSize(8);
-                doc.text(titulo, 13, y + 4.2);
+                doc.setFontSize(esHistorial ? 11 : 8);
+                doc.text(
+                    tituloBarra,
+                    esHistorial ? (ANCHO_PAGINA / 2) : 13,
+                    y + 4.2,
+                    esHistorial ? { align: 'center' } : undefined
+                );
                 doc.setTextColor(0, 0, 0);
 
                 doc.autoTable({
-                    html: tablaParaPdf,
+                    head: [dataTabla.columnas],
+                    body: dataTabla.filas,
                     startY: y + 6,
                     margin: { left: 10, right: 10 },
                     styles: { fontSize: 7.5, cellPadding: 2.5, textColor: [40, 40, 40] },
                     headStyles: { fillColor: colorBarra, textColor: 255, fontStyle: 'bold', fontSize: 8 },
-                    alternateRowStyles: { fillColor: [248, 249, 252] },
+                    alternateRowStyles: { fillColor: COLOR_FILA_ALTERNA },
                     tableLineColor: [200, 200, 200],
                     tableLineWidth: 0.15,
                     theme: 'grid'
@@ -1173,7 +1544,7 @@ async function exportarPDF() {
             const totalPaginas = doc.internal.getNumberOfPages();
             for (let p = 1; p <= totalPaginas; p++) {
                 doc.setPage(p);
-                doc.setFillColor(240, 240, 245);
+                doc.setFillColor(237, 231, 255);
                 doc.rect(0, 200, ANCHO_PAGINA, 10, 'F');
                 doc.setFontSize(7.5);
                 doc.setFont('helvetica', 'normal');
@@ -1302,43 +1673,52 @@ async function exportarExcel() {
 
         // ── Secciones ─────────────────────────────────────────────────
         const SECCIONES_PURPLE = new Set(['REPRESENTANTE MENOR CON DISCAPACIDAD', 'BASES EXTERNAS']);
-        const secciones = obtenerSeccionesOrdenExportacion();
+        const secciones = consolidarSeccionesHistorialPorAnio(
+            ordenarSeccionesHistorialAsc(obtenerSeccionesOrdenExportacion())
+        );
         const seccionWrappers = Array.from(document.querySelectorAll('#contenido-dinamico .table-wrapper'));
 
         for (const seccion of secciones) {
             const titulo = seccion.titulo;
             const tabla = seccion.tabla;
-
-            const colorArgb = SECCIONES_PURPLE.has(titulo) ? '6F42C1' : '1A3A5C';
+            const tituloUpper = `${titulo || ''}`.trim().toUpperCase();
+            const esHistorial = tituloUpper.startsWith('HISTORIAL DE COBROS');
+            const colorArgb = esHistorial
+                ? '2C168E'
+                : (SECCIONES_PURPLE.has(titulo) ? '6F42C1' : '2C168E');
+            const colorHeadArgb = '3A1EA4';
 
             // Separador + barra de sección
             ws.getRow(fila).height = 5; fila++;
 
-            const tablaParaExcel = clonarTablaSinAcciones(tabla);
-            const filas = Array.from(tablaParaExcel.querySelectorAll('tr'));
-            const numCols = filas[0] ? filas[0].querySelectorAll('th, td').length : 1;
+            const tablaParaExcel = prepararTablaParaExportacion(tabla, titulo);
+            const dataTabla = obtenerDataTablaParaExport(tablaParaExcel);
+            const filas = [dataTabla.columnas, ...dataTabla.filas];
+            const numCols = dataTabla.columnas.length || 1;
             // Calcular columna final real (máx 26 para la letra, pero extiende el relleno manualmente)
             const colFinIdx = Math.min(numCols, 26);
             const colFin = String.fromCharCode(64 + colFinIdx);
 
             ws.mergeCells(`A${fila}:${colFin}${fila}`);
             const cSec = ws.getCell(`A${fila}`);
-            cSec.value = titulo;
+            cSec.value = formatearTituloExcelSeccion(titulo);
             cSec.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + colorArgb } };
-            cSec.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
-            cSec.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
-            ws.getRow(fila).height = 18;
+            cSec.font = { bold: true, size: esHistorial ? 14 : 10, color: { argb: 'FFFFFFFF' } };
+            cSec.alignment = esHistorial
+                ? { horizontal: 'center', vertical: 'middle' }
+                : { horizontal: 'left', vertical: 'middle', indent: 1 };
+            ws.getRow(fila).height = esHistorial ? 24 : 18;
             fila++;
 
             // Filas de la tabla
-            filas.forEach((tr, rowIdx) => {
-                const celdas = tr.querySelectorAll('th, td');
+            filas.forEach((celdas, rowIdx) => {
                 const exRow = ws.getRow(fila);
                 const esHead = rowIdx === 0;
 
-                celdas.forEach((celda, colIdx) => {
+                celdas.forEach((valorCelda, colIdx) => {
                     const exCell = exRow.getCell(colIdx + 1);
-                    exCell.value = celda.innerText.trim();
+                    const textoCelda = `${valorCelda || ''}`.trim();
+                    exCell.value = esHead ? textoCelda.toUpperCase() : textoCelda;
                     exCell.border = {
                         top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
                         left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
@@ -1347,12 +1727,12 @@ async function exportarExcel() {
                     };
 
                     if (esHead) {
-                        exCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + colorArgb } };
+                        exCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + colorHeadArgb } };
                         exCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 9 };
                         exCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
                         exRow.height = 20;
                     } else {
-                        const bgFila = rowIdx % 2 === 0 ? 'FFF8F9FC' : 'FFFFFFFF';
+                        const bgFila = rowIdx % 2 === 0 ? 'FFF6F4FF' : 'FFFFFFFF';
                         exCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgFila } };
                         exCell.font = { size: 9 };
                         exCell.alignment = { vertical: 'middle', wrapText: true };
@@ -1390,6 +1770,304 @@ async function exportarExcel() {
     } catch (error) {
         console.error('Error Excel:', error);
         alert('Error al generar Excel. Revisa la consola.');
+    }
+}
+
+async function exportarHistorialPDF() {
+    if (!datosGlobales) {
+        alert('Primero busque un beneficiario');
+        return;
+    }
+
+    const secciones = consolidarSeccionesHistorialPorAnio(
+        ordenarSeccionesHistorialAsc(obtenerSeccionesHistorialExportacion())
+    );
+    if (!secciones.length) {
+        alert('No hay historial de cobros para exportar');
+        return;
+    }
+
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('landscape');
+        const cedula = document.getElementById('cedula').value;
+        const fecha = new Date().toLocaleString('es-EC');
+        const nombreCompleto = obtenerNombreBeneficiario();
+
+        const COLOR_SECCION = [44, 22, 142];
+        const COLOR_FILA_ALTERNA = [246, 244, 255];
+        const ANCHO_PAGINA = 287;
+
+        const generarPDF = (logoDataUrl) => {
+            if (logoDataUrl) {
+                doc.addImage(logoDataUrl, 'PNG', 10, 8, 30, 15);
+            }
+
+            doc.setTextColor(20, 20, 20);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16);
+            doc.text('REPORTE HISTORIAL DE COBROS', ANCHO_PAGINA / 2, 13, { align: 'center' });
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(80, 80, 80);
+            doc.text('Ministerio de Desarrollo Humano - El Nuevo Ecuador', ANCHO_PAGINA / 2, 21, { align: 'center' });
+            doc.setFontSize(8);
+            doc.setTextColor(120, 120, 120);
+            doc.text(`Fecha: ${fecha}`, ANCHO_PAGINA - 10, 8, { align: 'right' });
+            doc.setTextColor(0, 0, 0);
+
+            let y = 30;
+
+            doc.setFillColor(246, 244, 255);
+            doc.roundedRect(10, y, 186, 16, 2, 2, 'F');
+            doc.setTextColor(120, 120, 120);
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'normal');
+            doc.text('BENEFICIARIO', 14, y + 5.5);
+            doc.setTextColor(20, 20, 20);
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.text(nombreCompleto, 14, y + 12.2);
+            doc.setTextColor(0, 0, 0);
+
+            y += 22;
+
+            for (const seccion of secciones) {
+                const titulo = seccion.titulo;
+                const tabla = seccion.tabla;
+                const tablaParaPdf = prepararTablaParaExportacion(tabla, titulo);
+                const dataTabla = obtenerDataTablaParaExport(tablaParaPdf);
+                const tituloBarra = formatearTituloExcelSeccion(titulo);
+
+                if (y + 18 > 195) {
+                    doc.addPage();
+                    y = 15;
+                }
+
+                doc.setFillColor(...COLOR_SECCION);
+                doc.rect(10, y, 277, 6, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(11);
+                doc.text(tituloBarra, ANCHO_PAGINA / 2, y + 4.2, { align: 'center' });
+                doc.setTextColor(0, 0, 0);
+
+                doc.autoTable({
+                    head: [dataTabla.columnas],
+                    body: dataTabla.filas,
+                    startY: y + 6,
+                    margin: { left: 10, right: 10 },
+                    styles: { fontSize: 7.3, cellPadding: 2.3, textColor: [40, 40, 40] },
+                    headStyles: { fillColor: COLOR_SECCION, textColor: 255, fontStyle: 'bold', fontSize: 8 },
+                    alternateRowStyles: { fillColor: COLOR_FILA_ALTERNA },
+                    tableLineColor: [200, 200, 200],
+                    tableLineWidth: 0.15,
+                    theme: 'grid'
+                });
+
+                y = doc.lastAutoTable.finalY + 8;
+            }
+
+            const totalPaginas = doc.internal.getNumberOfPages();
+            for (let p = 1; p <= totalPaginas; p++) {
+                doc.setPage(p);
+                doc.setFillColor(237, 231, 255);
+                doc.rect(0, 200, ANCHO_PAGINA, 10, 'F');
+                doc.setFontSize(7.5);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 100, 100);
+                doc.text('Dirección de Administración de Datos', ANCHO_PAGINA / 2, 206, { align: 'center' });
+                doc.text(`Página ${p} de ${totalPaginas}`, ANCHO_PAGINA - 12, 206, { align: 'right' });
+            }
+
+            doc.save(`Historial_Cobros_${cedula}.pdf`);
+        };
+
+        const img = new Image();
+        img.onload = function () {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            canvas.getContext('2d').drawImage(img, 0, 0);
+            generarPDF(canvas.toDataURL('image/png'));
+        };
+        img.onerror = function () { generarPDF(null); };
+        img.src = 'logo.png';
+
+    } catch (error) {
+        console.error('Error PDF historial:', error);
+        alert('Error al generar PDF de historial');
+    }
+}
+
+async function exportarHistorialExcel() {
+    if (!datosGlobales) {
+        alert('Primero busque un beneficiario');
+        return;
+    }
+
+    const secciones = consolidarSeccionesHistorialPorAnio(
+        ordenarSeccionesHistorialAsc(obtenerSeccionesHistorialExportacion())
+    );
+    if (!secciones.length) {
+        alert('No hay historial de cobros para exportar');
+        return;
+    }
+
+    try {
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'Ministerio de Desarrollo Humano';
+        wb.created = new Date();
+
+        const cedula = document.getElementById('cedula').value || 'Sin_Cedula';
+        const fecha = new Date().toLocaleString('es-EC');
+        const nombreCompleto = obtenerNombreBeneficiario();
+        const ws = wb.addWorksheet('Historial Cobros');
+        let fila = 1;
+
+        try {
+            const resp = await fetch('logo2.png');
+            const blob = await resp.blob();
+            const base64 = await new Promise(res => {
+                const r = new FileReader();
+                r.onload = e => res(e.target.result.split(',')[1]);
+                r.readAsDataURL(blob);
+            });
+            const logoId = wb.addImage({ base64, extension: 'png' });
+            ws.addImage(logoId, { tl: { col: 0, row: 0 }, br: { col: 2, row: 4 }, editAs: 'oneCell' });
+        } catch (_) { }
+
+        const headerArgb = '5A009D';
+        const fillHeader = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + headerArgb } };
+
+        ws.getCell(`A${fila}`).fill = fillHeader;
+        ws.getCell(`B${fila}`).fill = fillHeader;
+        ws.mergeCells(`C${fila}:N${fila}`);
+        const cTitulo = ws.getCell(`C${fila}`);
+        cTitulo.value = 'REPORTE HISTORIAL DE COBROS';
+        cTitulo.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+        cTitulo.fill = fillHeader;
+        cTitulo.alignment = { horizontal: 'center', vertical: 'middle' };
+        ws.getRow(fila).height = 26;
+        fila++;
+
+        ws.getCell(`A${fila}`).fill = fillHeader;
+        ws.getCell(`B${fila}`).fill = fillHeader;
+        ws.mergeCells(`C${fila}:N${fila}`);
+        const cSub = ws.getCell(`C${fila}`);
+        cSub.value = 'Ministerio de Desarrollo Humano - El Nuevo Ecuador';
+        cSub.font = { size: 10, color: { argb: 'FFFFFFFF' } };
+        cSub.fill = fillHeader;
+        cSub.alignment = { horizontal: 'center' };
+        ws.getRow(fila).height = 18;
+        fila++;
+
+        ws.getCell(`A${fila}`).fill = fillHeader;
+        ws.getCell(`B${fila}`).fill = fillHeader;
+        ws.mergeCells(`C${fila}:N${fila}`);
+        const cFecha = ws.getCell(`C${fila}`);
+        cFecha.value = `Fecha: ${fecha}`;
+        cFecha.font = { size: 9, italic: true, color: { argb: 'FFDDDDFF' } };
+        cFecha.fill = fillHeader;
+        cFecha.alignment = { horizontal: 'center' };
+        fila++;
+
+        ws.getCell(`A${fila}`).value = 'BENEFICIARIO';
+        ws.getCell(`A${fila}`).font = { bold: true, size: 8, color: { argb: 'FF888888' } };
+        fila++;
+
+        const cNombre = ws.getCell(`A${fila}`);
+        cNombre.value = nombreCompleto;
+        cNombre.font = { bold: true, size: 13, color: { argb: 'FF141414' } };
+        cNombre.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5FF' } };
+        ws.mergeCells(`A${fila}:D${fila}`);
+        ws.getRow(fila).height = 22;
+        fila++;
+
+        ws.getRow(fila).height = 8;
+        fila++;
+
+        for (const seccion of secciones) {
+            const titulo = seccion.titulo;
+            const tabla = seccion.tabla;
+            const colorArgb = '2C168E';
+            const colorHeadArgb = '3A1EA4';
+
+            ws.getRow(fila).height = 5;
+            fila++;
+
+            const tablaParaExcel = prepararTablaParaExportacion(tabla, titulo);
+            const dataTabla = obtenerDataTablaParaExport(tablaParaExcel);
+            const filas = [dataTabla.columnas, ...dataTabla.filas];
+            const numCols = dataTabla.columnas.length || 1;
+            const colFinIdx = Math.min(numCols, 26);
+            const colFin = String.fromCharCode(64 + colFinIdx);
+
+            ws.mergeCells(`A${fila}:${colFin}${fila}`);
+            const cSec = ws.getCell(`A${fila}`);
+            cSec.value = formatearTituloExcelSeccion(titulo);
+            cSec.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + colorArgb } };
+            cSec.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+            cSec.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+            ws.getRow(fila).height = 24;
+            fila++;
+
+            filas.forEach((celdas, rowIdx) => {
+                const exRow = ws.getRow(fila);
+                const esHead = rowIdx === 0;
+
+                celdas.forEach((valorCelda, colIdx) => {
+                    const exCell = exRow.getCell(colIdx + 1);
+                    const textoCelda = `${valorCelda || ''}`.trim();
+                    exCell.value = esHead ? textoCelda.toUpperCase() : textoCelda;
+                    exCell.border = {
+                        top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+                        left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+                        bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+                        right: { style: 'thin', color: { argb: 'FFCCCCCC' } }
+                    };
+
+                    if (esHead) {
+                        exCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + colorHeadArgb } };
+                        exCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 9 };
+                        exCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                        exRow.height = 20;
+                    } else {
+                        const bgFila = rowIdx % 2 === 0 ? 'FFF6F4FF' : 'FFFFFFFF';
+                        exCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgFila } };
+                        exCell.font = { size: 9 };
+                        exCell.alignment = { vertical: 'middle', wrapText: true };
+                        exRow.height = 16;
+                    }
+                });
+
+                fila++;
+            });
+        }
+
+        ws.columns.forEach(col => {
+            let maxLen = 10;
+            col.eachCell({ includeEmpty: false }, cell => {
+                const len = cell.value ? String(cell.value).length : 0;
+                if (len > maxLen) maxLen = len;
+            });
+            col.width = Math.min(maxLen + 3, 55);
+        });
+
+        ws.views = [{ state: 'frozen', ySplit: 5, topLeftCell: 'A6' }];
+
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Historial_Cobros_${cedula}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+    } catch (error) {
+        console.error('Error Excel historial:', error);
+        alert('Error al generar Excel de historial. Revisa la consola.');
     }
 }
 
