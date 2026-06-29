@@ -1569,20 +1569,17 @@ app.post('/buscarBeneficiario', limiter, async (req, res) => {
     `;
 
     const qContactabilidad = `
-      SELECT
-        [PROVINCIA] AS provincia,
-        [CANTON] AS canton,
-        [PARROQUIA] AS parroquia,
-        [LOCALIDAD] AS localidad,
-        [REFERENCIA VV] AS referencia,
-        [CALLE 1] AS calle1,
-        [CALLE 2] AS calle2,
-        [CELULAR] AS celular,
-        [TELEFONO 7] AS telefono7,
-        [TELEFONO 8] AS telefono8
+      SELECT [PROVINCIA] AS provincia,[CANTON] AS canton,[PARROQUIA] AS parroquia,
+             [LOCALIDAD] AS localidad,[REFERENCIA VV] AS referencia,[CALLE 1] AS calle1,
+             [CALLE 2] AS calle2,[CELULAR] AS celular,[TELEFONO 7] AS telefono7,[TELEFONO 8] AS telefono8
       FROM [192.168.98.210].[SippsDataBono].[dbo].[DWContactabilidad]
-      WHERE [CEDULA] = @cedula OR [CEDULA BENEFICIARIO] = @cedula
-      ORDER BY [PROVINCIA], [CANTON], [PARROQUIA], [LOCALIDAD]
+      WHERE [CEDULA] = @cedula
+      UNION
+      SELECT [PROVINCIA],[CANTON],[PARROQUIA],[LOCALIDAD],[REFERENCIA VV],
+             [CALLE 1],[CALLE 2],[CELULAR],[TELEFONO 7],[TELEFONO 8]
+      FROM [192.168.98.210].[SippsDataBono].[dbo].[DWContactabilidad]
+      WHERE [CEDULA BENEFICIARIO] = @cedula
+      ORDER BY provincia, canton, parroquia, localidad
     `;
 
 
@@ -1604,17 +1601,17 @@ app.post('/buscarBeneficiario', limiter, async (req, res) => {
           ROW_NUMBER() OVER (
             ORDER BY
                 CASE
-                    WHEN TRY_CAST(CEDULA_BENEFICIARIO AS VARCHAR(20)) = @cedula THEN 1
-                    WHEN TRY_CAST(CEDULA_RECEPTOR AS VARCHAR(20)) = @cedula THEN 2
+                    WHEN CEDULA_BENEFICIARIO = TRY_CAST(@cedula AS BIGINT) THEN 1
+                    WHEN CEDULA_RECEPTOR     = TRY_CAST(@cedula AS BIGINT) THEN 2
                     ELSE 3
                 END,
                 TRY_CONVERT(DATE, FECHA_SALIDA) DESC
         ) AS rn
-    
+
     FROM [192.168.98.210].[SippsDataBdh].[dbo].[SC_CED_BEN_TOTAL]
-    WHERE 
-        TRY_CAST(CEDULA_BENEFICIARIO AS VARCHAR(20)) = @cedula
-        OR TRY_CAST(CEDULA_RECEPTOR AS VARCHAR(20)) = @cedula
+    WHERE
+        CEDULA_BENEFICIARIO = TRY_CAST(@cedula AS BIGINT)
+        OR CEDULA_RECEPTOR  = TRY_CAST(@cedula AS BIGINT)
 )
     
 SELECT
