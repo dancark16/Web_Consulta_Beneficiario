@@ -93,10 +93,11 @@ table tr:hover {
 }
 
 footer {
-  background: #4B0082;
+  background: linear-gradient(135deg, #252b86 0%, #30298f 48%, #26217c 100%);
   color: white;
   text-align: center;
   padding: 15px;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 
@@ -350,7 +351,7 @@ button:hover {
 
 /* ==================== ESTILOS PARA HEADER REPORTE ==================== */
 .header-main {
-  background: linear-gradient(90deg, #4400BE, #0000CD);
+  background: linear-gradient(135deg, #252b86 0%, #30298f 48%, #26217c 100%);
   color: white;
   text-align: center;
   padding: 20px;
@@ -365,7 +366,7 @@ button:hover {
 }
 
 .logo-header {
-  width: 350px;
+  width: auto;
 }
 
 .subheader-header {
@@ -663,7 +664,7 @@ body {
 }
 
 .header-main {
-  background: linear-gradient(135deg, #5a009d 0%, #3b00cc 100%);
+  background: linear-gradient(135deg, #252b86 0%, #30298f 48%, #26217c 100%);
   color: white;
   padding: 2rem 0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -852,6 +853,10 @@ main {
   overflow-x: auto;
 }
 
+.table-wrapper-nucleo {
+  overflow-x: auto;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -860,6 +865,10 @@ table {
 
 .tabla-hogar {
   min-width: 1320px;
+}
+
+.tabla-nucleo {
+  min-width: 1400px;
 }
 
 /* Hogar: fijar anchos de las ultimas columnas para evitar que HABILITADO se desplace */
@@ -977,7 +986,8 @@ td {
   font-size: 0.95rem;
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(90deg, #25217b, #5a54df);
+  background: #2d2d96;
+  border-left: 4px solid #ffc003;
 }
 
 .historial-cobros-toggle::-webkit-details-marker {
@@ -1017,7 +1027,7 @@ td {
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: #283479;
+  color: #2d2d96;
 }
 
 .btn-export-historial {
@@ -1042,7 +1052,7 @@ td {
 .historial-identificador {
   margin: 14px 20px 8px 20px;
   padding: 0 0 0 14px;
-  color: #34278a;
+  color: #2d2d96;
   font-family: 'Montserrat', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   font-size: 0.9rem;
   font-weight: 700;
@@ -1060,7 +1070,7 @@ td {
   height: 7px;
   transform: translateY(-50%);
   border-radius: 50%;
-  background: #6a49dd;
+  background: #ffc003;
 }
 
 .historial-anios-wrap {
@@ -1083,9 +1093,10 @@ td {
   font-size: 0.86rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: #2f2280;
-  background: linear-gradient(90deg, #ece8ff, #f6f4ff);
-  border-bottom: 1px solid #dcd5ff;
+  color: #2d2d96;
+  background: linear-gradient(90deg, #e8e8f8, #f0f0fa);
+  border-bottom: 1px solid #d0d0ee;
+  border-left: 3px solid #ffc003;
 }
 
 .historial-anio-toggle::-webkit-details-marker {
@@ -1119,8 +1130,8 @@ td {
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  background: linear-gradient(90deg, #2c168e, #3a1ea4);
-  border-bottom: 1px solid #4632b3;
+  background: #2d2d96;
+  border-bottom: 1px solid #3d3daa;
 }
 
 .tabla-historial-cobros td {
@@ -1144,11 +1155,11 @@ td {
 
 .tabla-historial-cobros td:nth-child(2) {
   font-weight: 600;
-  color: #202a64;
+  color: #23237a;
 }
 
 .tabla-historial-cobros td:last-child {
-  color: #3a2d59;
+  color: #2d2d96;
 }
 
 .tabla-historial-cobros .periodo-pill,
@@ -1161,26 +1172,26 @@ td {
 }
 
 .tabla-historial-cobros .periodo-pill {
-  background: #edf0ff;
-  border: 1px solid #d4dbff;
-  color: #2f3770;
+  background: #e8e8f8;
+  border: 1px solid #c0c0e8;
+  color: #2d2d96;
   font-weight: 600;
   padding: 3px 10px;
   border-radius: 999px;
 }
 
 .tabla-historial-cobros .mes-pill {
-  background: #edf0ff;
-  border: 1px solid #d4dbff;
-  color: #2f3770;
+  background: #e8e8f8;
+  border: 1px solid #c0c0e8;
+  color: #2d2d96;
   font-weight: 700;
   padding: 3px 10px;
   border-radius: 999px;
 }
 
 .tabla-historial-cobros .bono-pill {
-  background: linear-gradient(90deg, #eef0ff, #f7f5ff);
-  border-left: 4px solid #5b47d6;
+  background: linear-gradient(90deg, #eef0ff, #f5f5ff);
+  border-left: 4px solid #2d2d96;
   border-radius: 10px;
   padding: 5px 9px;
 }
@@ -1198,14 +1209,14 @@ td {
 .tabla-historial-cobros .fecha-pill {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
-  color: #243b73;
+  color: #2d2d96;
   font-weight: 600;
 }
 
 .tabla-historial-cobros .excepcion-pill {
-  background: #f6edff;
-  border: 1px solid #e0d0ff;
-  color: #5a2f8f;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  color: #b07800;
   border-radius: 10px;
   padding: 4px 9px;
 }
@@ -1299,13 +1310,13 @@ td {
 
 #contenido-dinamico .table-wrapper > table:not(.tabla-historial-cobros):not(.tabla-datos-generales) td:first-child {
   font-weight: 700;
-  color: #2b2870;
-  box-shadow: inset 4px 0 0 #6c4ce6;
+  color: #23237a;
+  box-shadow: inset 4px 0 0 #2d2d96;
 }
 
 #contenido-dinamico .table-wrapper > table:not(.tabla-historial-cobros):not(.tabla-datos-generales) td.text-center {
   font-weight: 600;
-  color: #3c3374;
+  color: #2d2d96;
 }
 
 .link-ver-reporte {
@@ -1581,6 +1592,11 @@ main .table-wrapper {
   overflow: hidden;
 }
 
+main .table-wrapper-nucleo {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
 main .table-wrapper table {
   width: 100%;
   margin: 0;
@@ -1591,22 +1607,27 @@ main .table-wrapper table {
 
 /* Paleta unificada para encabezados */
 :root {
-  --brand-purple: #5a009d;
-  --brand-purple-deep: #44007a;
-  --brand-indigo: #2f1fb8;
-  --brand-indigo-deep: #24178d;
+  --brand-navy: #2d2d96;
+  --brand-navy-deep: #23237a;
+  --brand-navy-mid: #3535b0;
+  --brand-yellow: #ffc003;
+  --brand-purple: #2d2d96;
+  --brand-purple-deep: #23237a;
+  --brand-indigo: #2d2d96;
+  --brand-indigo-deep: #23237a;
   --on-brand: #ffffff;
 }
 
 main .section-header,
 main .section-header.purple {
-  background: linear-gradient(135deg, var(--brand-purple) 0%, var(--brand-purple-deep) 100%);
+  background: var(--brand-navy);
   color: var(--on-brand);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-left: 4px solid var(--brand-yellow);
+  border-radius: 6px;
 }
 
 main .table-wrapper thead th {
-  background: var(--brand-indigo-deep);
+  background: var(--brand-navy);
   color: var(--on-brand);
   border-bottom: 0;
 }
@@ -1765,12 +1786,35 @@ main .tabla-datos-generales td.dg-empty {
     margin: 0 0 5px 0;
     font-weight: 800;
     line-height: 1.1;
+    font-family: Arial, Helvetica, sans-serif;
+    letter-spacing: 0.5px;
 }
 
 .header-text p {
     font-size: 0.98rem;
     margin: 0;
     opacity: 0.95;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.header-fecha-pill {
+    margin-left: auto;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 0.88rem;
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 500;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.header-fecha-icono {
+    font-size: 1rem;
 }
 
 /* Responsivo */
@@ -1802,29 +1846,133 @@ main .tabla-datos-generales td.dg-empty {
 main .search-box button.btn-brand-purple,
 main .export-buttons button.btn-brand-purple,
 main a.link-ver-reporte.btn-brand-purple {
-  background: linear-gradient(90deg, #25217b, #5a54df) !important;
+  background: #2d2d96 !important;
   color: #fff !important;
-  box-shadow: 0 12px 24px rgba(48, 42, 159, 0.28) !important;
+  box-shadow: 0 4px 14px rgba(45, 45, 150, 0.3) !important;
 }
 
 main .search-box button.btn-brand-purple:hover,
 main .export-buttons button.btn-brand-purple:hover,
 main a.link-ver-reporte.btn-brand-purple:hover {
-  background: linear-gradient(90deg, #201b66, #5049cb) !important;
-  box-shadow: 0 16px 30px rgba(48, 42, 159, 0.36) !important;
+  background: #23237a !important;
+  box-shadow: 0 6px 18px rgba(45, 45, 150, 0.4) !important;
 }
 
 main .search-box button.btn-brand-yellow,
 main .export-buttons button.btn-brand-yellow,
 main a.link-ver-reporte.btn-brand-yellow {
-  background: linear-gradient(90deg, #f0c419, #ffd94d) !important;
-  color: #2a2200 !important;
-  box-shadow: 0 12px 24px rgba(240, 196, 25, 0.28) !important;
+  background: #ffc003 !important;
+  color: #1a1400 !important;
+  box-shadow: 0 4px 14px rgba(255, 192, 3, 0.3) !important;
 }
 
 main .search-box button.btn-brand-yellow:hover,
 main .export-buttons button.btn-brand-yellow:hover,
 main a.link-ver-reporte.btn-brand-yellow:hover {
-  background: linear-gradient(90deg, #e0b60e, #ffcd2f) !important;
-  box-shadow: 0 16px 30px rgba(240, 196, 25, 0.38) !important;
+  background: #e6ac00 !important;
+  box-shadow: 0 6px 18px rgba(255, 192, 3, 0.4) !important;
+}
+
+/* === HEADER RESPONSIVO DEFINITIVO === */
+.header-main {
+  background: linear-gradient(135deg, #252b86 0%, #30298f 48%, #26217c 100%) !important;
+  padding: 18px 0 !important;
+}
+
+.header-content {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 20px !important;
+  max-width: 1400px !important;
+  margin: 0 auto !important;
+  padding: 0 24px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.logo-header {
+  height: 85px !important;
+  width: auto !important;
+  object-fit: contain !important;
+  display: block !important;
+}
+
+.header-text {
+  flex: 1 !important;
+  text-align: center !important;
+}
+
+.header-text h1 {
+  font-size: 1.9rem !important;
+  font-weight: 800 !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  margin: 0 0 4px 0 !important;
+  line-height: 1.15 !important;
+}
+
+.header-text p {
+  font-size: 0.92rem !important;
+  margin: 0 !important;
+  opacity: 0.9 !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
+.header-fecha-pill {
+  margin-left: 0 !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 20px !important;
+  padding: 6px 14px !important;
+  font-size: 0.85rem !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  white-space: nowrap !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  color: #fff !important;
+  flex-shrink: 0 !important;
+}
+
+/* Tablet */
+@media (max-width: 900px) {
+  .header-content {
+    gap: 14px !important;
+    padding: 0 16px !important;
+  }
+  .logo-header {
+    height: 70px !important;
+  }
+  .header-text h1 {
+    font-size: 1.5rem !important;
+  }
+  .header-fecha-pill {
+    font-size: 0.78rem !important;
+    padding: 5px 11px !important;
+  }
+}
+
+/* Móvil */
+@media (max-width: 600px) {
+  .header-content {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 0 14px !important;
+  }
+  .logo-header {
+    height: 60px !important;
+  }
+  .header-text h1 {
+    font-size: 1.35rem !important;
+  }
+  .header-text p {
+    font-size: 0.82rem !important;
+  }
+  .header-fecha-pill {
+    font-size: 0.78rem !important;
+    padding: 5px 12px !important;
+    margin-left: 0 !important;
+  }
 }

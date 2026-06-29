@@ -143,12 +143,17 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.static('public', {
-  etag: false,
-  lastModified: false,
-  setHeaders: (res) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    const isLib = filePath.includes(`${path.sep}libs${path.sep}`);
+    if (isLib) {
+      // Librerías externas: cachear 7 días (no cambian)
+      res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+    } else {
+      // Archivos de la app: revalidar siempre con ETag (no re-descarga si no cambió)
+      res.setHeader('Cache-Control', 'no-cache');
+    }
   }
 }));
 
@@ -243,8 +248,8 @@ function inferirCanalPago(histRow) {
   // Regla de negocio: 27 implica envio a cuenta, aunque no este conciliado.
   if (codStatus === '27') return 'CUENTA';
 
-  // Estados de "abre tu cuenta..." se tratan como ventanilla.
-  const codStatusVentanilla = new Set(['70', '74', '75', '76', '77']);
+  // Estados de "abre tu cuenta..." y CDH/Ahorro se tratan como ventanilla.
+  const codStatusVentanilla = new Set(['61', '70', '74', '75', '76', '77']);
   if (codStatusVentanilla.has(codStatus)) return 'VENTANILLA';
 
   const tieneReferencias = [histRow?.MID, histRow?.TID, histRow?.REFERENCIA]
@@ -811,8 +816,8 @@ async function obtenerHistorialCobrosSqlContinuidad(pool, cedula, bonoRef, optio
     const parsedCodigo = mapPeriodoPagoCodigoToMesAnio(r.Codigo || r.CODIGO);
     const parsedFecha = inferirMesAnioDesdeFecha(r.FechaFin || r.FECHAFIN || r.FechaCobro || r.FECHACOBRO || r.FechaRegistro || r.FECHAREGISTRO);
 
-    const mes = Number.parseInt(`${r.Mes || r.MES || parsedPeriodo.mes || parsedCodigo.mes || parsedFecha.mes || ''}`, 10);
-    const anio = Number.parseInt(`${r.Anio || r.ANIO || parsedPeriodo.anio || parsedCodigo.anio || parsedFecha.anio || ''}`, 10);
+    const mes = Number.parseInt(`${r.Mes || r.MES || r.MesAplica || r.MESAPLICA || parsedPeriodo.mes || parsedCodigo.mes || parsedFecha.mes || ''}`, 10);
+    const anio = Number.parseInt(`${r.Anio || r.ANIO || r.AnioAplica || r.ANIOAPLICA || parsedPeriodo.anio || parsedCodigo.anio || parsedFecha.anio || ''}`, 10);
     const codPeriodo = buildCodPeriodoFiscal(anio);
     const codSubperiodo = !Number.isNaN(mes) && mes >= 1 && mes <= 12 ? `${mes}` : '';
     // Regla de negocio: en continuidad SQL ignoramos el prefijo BDH del campo Codigo/Periodo.
@@ -826,6 +831,7 @@ async function obtenerHistorialCobrosSqlContinuidad(pool, cedula, bonoRef, optio
         ? defaultMonto
         : montoDefecto;
 
+    const codStatusSql = `${r.CODIGO_TIPO_EXCEPCION_NEW || defaultCodStatus}`.trim();
     return {
       codigoben: `${cedula}`,
       codSubsidio,
@@ -834,7 +840,7 @@ async function obtenerHistorialCobrosSqlContinuidad(pool, cedula, bonoRef, optio
       periodo: buildPeriodoLabel(codPeriodo, codSubperiodo),
       monto: montoNormalizado,
       flagPago: '1',
-      codStatus: `${r.CODIGO_TIPO_EXCEPCION_NEW || defaultCodStatus}`.trim(),
+      codStatus: codStatusSql,
       codAccion: '000',
       fechaCobro: toIsoDate(r.FechaFin || r.FECHAFIN || r.FechaRegistro || r.FECHAREGISTRO || r.FechaInicio || r.FECHAINICIO),
       fechaRegistro: toIsoDate(r.FechaRegistro || r.FECHAREGISTRO),
@@ -843,7 +849,7 @@ async function obtenerHistorialCobrosSqlContinuidad(pool, cedula, bonoRef, optio
       tid: null,
       codRepres: null,
       tipoPrograma: inferirEsMilDias(codSubsidio) ? '1000_DIAS' : 'BONOS',
-      canalPago: 'CUENTA'
+      canalPago: codStatusSql === '61' ? 'VENTANILLA' : 'CUENTA'
     };
   });
 
@@ -885,21 +891,16 @@ async function obtenerHistorialCobrosSqlContinuidad(pool, cedula, bonoRef, optio
   };
 }
 
-
-
-
-
-
-
-
-
-
 async function obtenerHistorialCobrosOracle(cedula) {
+  // DESPUÉS — agregar las nuevas propiedades:
   const emptyResponse = {
     enabled: false,
     available: false,
     message: oracleDriverReason || 'Historial de cobros no configurado.',
     beneficiario: null,
+    detalleTransaccionRows: [],
+    historialPermanenteRows: [],
+    // Mantener estas por si algo del código viejo las referencia
     bonosPagoCuenta: [],
     bonosVentanilla: [],
     milDiasPagoCuenta: [],
@@ -918,9 +919,11 @@ async function obtenerHistorialCobrosOracle(cedula) {
   let connection;
   try {
     connection = await pool.getConnection();
-    const oracleCallTimeoutMs = Number.parseInt(`${process.env.ORACLE_QUERY_TIMEOUT_MS || '7000'}`, 10) || 7000;
+    // Timeout corto para queries rapidas (beneficiario, historial permanente)
+    const oracleCallTimeoutMs = Number.parseInt(`${process.env.ORACLE_CALL_TIMEOUT_MS || '8000'}`, 10) || 8000;
     connection.callTimeout = oracleCallTimeoutMs;
 
+    const tBenef0 = Date.now();
     const beneficiarioRs = await connection.execute(
       `
         SELECT
@@ -931,6 +934,7 @@ async function obtenerHistorialCobrosOracle(cedula) {
       `,
       { cedula }
     );
+    console.log(`[ORACLE TIMING] beneficiario: ${Date.now() - tBenef0}ms`);
 
     const beneficiario = beneficiarioRs.rows && beneficiarioRs.rows[0] ? beneficiarioRs.rows[0] : null;
     if (!beneficiario) {
@@ -976,6 +980,7 @@ async function obtenerHistorialCobrosOracle(cedula) {
     let rows = [];
 
     // Primera opcion (rapida): comparar con CODIGOBEN exacto devuelto por Oracle.
+    const tHist0 = Date.now();
     const historialExactoRs = await connection.execute(
       `${qHistorialBase}
        WHERE CODIGOBEN = :codigoBenExacto
@@ -983,23 +988,39 @@ async function obtenerHistorialCobrosOracle(cedula) {
       { codigoBenExacto: codigoBenRaw }
     );
     rows = historialExactoRs.rows || [];
+    console.log(`[ORACLE TIMING] historialExacto (${rows.length} filas): ${Date.now() - tHist0}ms`);
 
     // Fallback: algunos registros guardan CODIGOBEN en otro formato (con/sin puntos).
+    // Usa REPLACE/TO_CHAR = full table scan sin indice, necesita mas tiempo.
     if (!rows.length) {
-      const historialNormalizadoRs = await connection.execute(
-        `${qHistorialBase}
-         WHERE REPLACE(TO_CHAR(CODIGOBEN), '.', '') = :codigoBenNormalizado
-         ORDER BY TO_NUMBER(CODPERIODO) DESC, TO_NUMBER(CODSUBPERIODO) DESC`,
-        { codigoBenNormalizado: codigoBenNormalizado }
-      );
-      rows = historialNormalizadoRs.rows || [];
+      const oracleHistNormTimeoutMs = Number.parseInt(`${process.env.ORACLE_HIST_NORM_TIMEOUT_MS || '25000'}`, 10) || 25000;
+      const prevTimeoutNorm = connection.callTimeout;
+      connection.callTimeout = oracleHistNormTimeoutMs;
+      try {
+        const tHistN0 = Date.now();
+        const historialNormalizadoRs = await connection.execute(
+          `${qHistorialBase}
+           WHERE REPLACE(TO_CHAR(CODIGOBEN), '.', '') = :codigoBenNormalizado
+           ORDER BY TO_NUMBER(CODPERIODO) DESC, TO_NUMBER(CODSUBPERIODO) DESC`,
+          { codigoBenNormalizado: codigoBenNormalizado }
+        );
+        rows = historialNormalizadoRs.rows || [];
+        console.log(`[ORACLE TIMING] historialNormalizado (${rows.length} filas): ${Date.now() - tHistN0}ms`);
+      } catch (histNormErr) {
+        console.warn('[ORACLE] historialNormalizado timeout/error:', histNormErr.message);
+        rows = [];
+      } finally {
+        connection.callTimeout = prevTimeoutNorm;
+      }
     }
     const datosVentanillaBeneficiario = extraerDatosVentanillaDesdeBeneficiario(beneficiario);
     let detalleVentanillaRows = [];
     const previousCallTimeout = connection.callTimeout;
     try {
-      const oracleVentanillaTimeoutMs = Number.parseInt(`${process.env.ORACLE_VENTANILLA_QUERY_TIMEOUT_MS || '25000'}`, 10) || 25000;
+      const oracleVentanillaTimeoutMs = Number.parseInt(`${process.env.ORACLE_VENTANILLA_QUERY_TIMEOUT_MS || '15000'}`, 10) || 15000;
       connection.callTimeout = oracleVentanillaTimeoutMs;
+      console.log(`[ORACLE TIMING] ventanilla iniciando (callTimeout=${oracleVentanillaTimeoutMs}ms)`);
+      const tVent0 = Date.now();
 
       const detalleVentanillaRs = await connection.execute(
         `
@@ -1053,6 +1074,7 @@ async function obtenerHistorialCobrosOracle(cedula) {
         { cedula }
       );
       detalleVentanillaRows = detalleVentanillaRs.rows || [];
+      console.log(`[ORACLE TIMING] ventanilla (${detalleVentanillaRows.length} filas): ${Date.now() - tVent0}ms`);
     } catch (detalleErr) {
       console.warn('[ORACLE] No se pudo consultar detalle ventanilla de transacciones:', detalleErr.message);
       detalleVentanillaRows = [];
@@ -1069,7 +1091,7 @@ async function obtenerHistorialCobrosOracle(cedula) {
       const detalle = {
         provincia: `${row.PROVINCIA || ''}`.trim() || null,
         ciudad: `${row.CIUDAD || ''}`.trim() || null,
-          canton: `${row.CIUDAD || ''}`.trim() || null,
+        canton: `${row.CIUDAD || ''}`.trim() || null,
         parroquia: `${row.PARROQUIA || ''}`.trim() || null,
         banco: `${row.BANCO || ''}`.trim() || null,
         agencia: `${row.AGENCIA || ''}`.trim() || null,
@@ -1159,10 +1181,10 @@ async function obtenerHistorialCobrosOracle(cedula) {
         fechaFin: toIsoDate(beneficiario.FECHAFIN),
         fechaRegistro: toIsoDate(beneficiario.FECHAREGISTRO)
       },
-      bonosPagoCuenta: cobros.filter((r) => r.tipoPrograma === 'BONOS' && r.canalPago === 'CUENTA'),
-      bonosVentanilla: cobros.filter((r) => r.tipoPrograma === 'BONOS' && r.canalPago === 'VENTANILLA'),
-      milDiasPagoCuenta: cobros.filter((r) => r.tipoPrograma === '1000_DIAS' && r.canalPago === 'CUENTA'),
-      milDiasVentanilla: cobros.filter((r) => r.tipoPrograma === '1000_DIAS' && r.canalPago === 'VENTANILLA')
+      // TB_DETALLE_TRANSACCION — fuente principal (ventanilla confirmada)
+      detalleTransaccionRows: detalleVentanillaRows,
+      // TB_HISTORIAL_PERMANENTE_ACUM — soporte/fallback
+      historialPermanenteRows: cobros
     };
   } finally {
     if (connection) {
@@ -1173,6 +1195,99 @@ async function obtenerHistorialCobrosOracle(cedula) {
       }
     }
   }
+}
+
+
+/**
+ * Merge de 3 fuentes con prioridad:
+ * 1° TB_DETALLE_TRANSACCION  → ventanilla confirmada (fuente principal)
+ * 2° CUADRE_PAGO_CUENTA      → cuenta confirmada (complementa períodos nuevos)
+ * 3° TB_HISTORIAL_PERMANENTE → soporte para períodos no cubiertos por las anteriores
+ */
+function mergeCobros3Fuentes({ detalleTransaccionRows, sqlContinuidadRows, historialPermanenteRows }) {
+  // ─── FUENTE 1: TB_DETALLE_TRANSACCION (ventanilla confirmada) ───────────────
+  const ventanillaRows = (detalleTransaccionRows || [])
+    .map((r) => {
+      const { mes, anio } = inferirMesAnioDesdeFecha(r.FECHA_COBRO);
+      const codPeriodo = buildCodPeriodoFiscal(anio);
+      const codSubperiodo = mes ? `${mes}` : '';
+      const codSubsidio = normalizarCodSubsidioCanonico(
+        `${r.BONO_TITULAR || ''}`.trim()
+      );
+      const esMilDias = inferirEsMilDias(codSubsidio);
+      const monto = parseNumber(r.MONTO_COBRADO);
+
+      return {
+        codigoben: `${r.CEDULA_TITULAR || ''}`.trim(),
+        codSubsidio,
+        codPeriodo: codPeriodo || '',
+        codSubperiodo,
+        periodo: buildPeriodoLabel(codPeriodo, codSubperiodo),
+        monto: monto !== null && monto !== 0
+          ? monto
+          : (montoDefectoPorSubsidio(codSubsidio) ?? null),
+        flagPago: '1',
+        codStatus: '70',   // ventanilla confirmada
+        codAccion: '000',
+        fechaCobro: toIsoDate(r.FECHA_COBRO),
+        fechaRegistro: null,
+        referencia: null,
+        mid: null,
+        tid: null,
+        codRepres: null,
+        tipoPrograma: esMilDias ? '1000_DIAS' : 'BONOS',
+        canalPago: 'VENTANILLA',
+        provincia: `${r.PROVINCIA || ''}`.trim() || null,
+        ciudad: `${r.CIUDAD || ''}`.trim() || null,
+        canton: `${r.CIUDAD || ''}`.trim() || null,
+        parroquia: `${r.PARROQUIA || ''}`.trim() || null,
+        banco: `${r.BANCO || ''}`.trim() || null,
+        agencia: `${r.AGENCIA || ''}`.trim() || null,
+        direccionAgencia: `${r.DIRECCION_AGENCIA || ''}`.trim() || null,
+      };
+    })
+    .filter((r) => r.codPeriodo && r.codSubperiodo && r.fechaCobro);
+
+  // Set de períodos cubiertos por TB_DETALLE_TRANSACCION (incluye tipoPrograma para no bloquear cruzado entre BONOS y 1000_DIAS)
+  const periodosCubiertosDetalle = new Set(
+    ventanillaRows.map((r) => `${r.codPeriodo}|${r.codSubperiodo}|${r.tipoPrograma}`)
+  );
+
+  // ─── FUENTE 2: CUADRE_PAGO_CUENTA (cuenta confirmada) ──────────────────────
+  // Solo toma períodos que TB_DETALLE_TRANSACCION NO cubre (por el mismo programa)
+  const cuentaRows = (sqlContinuidadRows || [])
+    .filter((r) => {
+      const baseKey = `${r.codPeriodo || ''}|${r.codSubperiodo || ''}`;
+      const fullKey = `${baseKey}|${r.tipoPrograma || ''}`;
+      return baseKey !== '|' && !periodosCubiertosDetalle.has(fullKey);
+    });
+
+  // Set de períodos cubiertos por las 2 fuentes principales
+  const periodosCubiertosTotal = new Set([
+    ...periodosCubiertosDetalle,
+    ...cuentaRows.map((r) => `${r.codPeriodo}|${r.codSubperiodo}|${r.tipoPrograma}`)
+  ]);
+
+  // ─── FUENTE 3: TB_HISTORIAL_PERMANENTE_ACUM (soporte/fallback) ─────────────
+  // Solo toma períodos que ninguna de las dos fuentes anteriores cubre (por el mismo programa)
+  const historialRows = (historialPermanenteRows || [])
+    .filter((r) => {
+      const baseKey = `${r.codPeriodo || ''}|${r.codSubperiodo || ''}`;
+      const fullKey = `${baseKey}|${r.tipoPrograma || ''}`;
+      return baseKey !== '|' && !periodosCubiertosTotal.has(fullKey);
+    });
+
+  // ─── Unir y ordenar ────────────────────────────────────────────────────────
+  const todas = [...ventanillaRows, ...cuentaRows, ...historialRows];
+
+  return todas.sort((a, b) => {
+    const yearA = Number.parseInt(`${a.codPeriodo || ''}`, 10) || 0;
+    const yearB = Number.parseInt(`${b.codPeriodo || ''}`, 10) || 0;
+    if (yearA !== yearB) return yearB - yearA;
+    const monthA = Number.parseInt(`${a.codSubperiodo || ''}`, 10) || 0;
+    const monthB = Number.parseInt(`${b.codSubperiodo || ''}`, 10) || 0;
+    return monthB - monthA;
+  });
 }
 
 function buildDbConfig(server) {
@@ -1526,22 +1641,9 @@ FROM CTE_BENEFICIARIO
 WHERE rn = 1;
 `;
 
-    // Ejecutamos todas las consultas con timers para diagnóstico
-    const queryTimeoutsMs = {
-      iess: Number.parseInt(`${process.env.SQL_TIMEOUT_IESS_MS || '2500'}`, 10) || 2500,
-      basesExternas: Number.parseInt(`${process.env.SQL_TIMEOUT_BASES_EXTERNAS_MS || '2200'}`, 10) || 2200,
-      contactabilidad: Number.parseInt(`${process.env.SQL_TIMEOUT_CONTACTABILIDAD_MS || '2200'}`, 10) || 2200,
-      fechasBono: Number.parseInt(`${process.env.SQL_TIMEOUT_FECHAS_BONO_MS || '2500'}`, 10) || 2500
-    };
-
     const tq = (name, promise) => {
       const t0 = Date.now();
-      const timeoutMs = queryTimeoutsMs[name] || 0;
-      const wrapped = timeoutMs > 0
-        ? withTimeout(promise, timeoutMs, `Consulta ${name} excedio ${timeoutMs}ms`)
-        : promise;
-
-      return wrapped.then(r => { console.log(`[TIMING] ${name}: ${Date.now() - t0}ms`); return r; })
+      return promise.then(r => { console.log(`[TIMING] ${name}: ${Date.now() - t0}ms`); return r; })
         .catch(err => { console.log(`[TIMING] ${name}: ERROR ${Date.now() - t0}ms – ${err.message}`); return { recordset: [] }; });
     };
 
@@ -1922,6 +2024,37 @@ WHERE rn = 1;
       hogar = [];
     }
 
+    // Enriquecer hogar con parentesco + EsRepresentante desde SippsDataBono (tablaCorteActual)
+    if (hogar.length > 0) {
+      try {
+        const cedulasParentesco = [...new Set(hogar.map(m => m.cedula).filter(Boolean))];
+        const inListP = cedulasParentesco.map(c => `'${c.replace(/'/g, "''")}'`).join(',');
+        const qParentesco = `
+          SELECT CAST(cedula AS VARCHAR(20)) AS cedula,
+                 parentescojefe,
+                 parentescojefenucleo,
+                 EsRepresentante
+          FROM ${tablaCorteActual}
+          WHERE CAST(cedula AS VARCHAR(20)) IN (${inListP})
+        `;
+        const rPar = await pool.request().query(qParentesco);
+        const parMap = new Map(
+          (rPar.recordset || []).map(r => [`${r.cedula || ''}`.trim(), r])
+        );
+        hogar = hogar.map(m => {
+          const par = parMap.get(`${m.cedula || ''}`.trim());
+          return {
+            ...m,
+            parentescojefe: par?.parentescojefe ?? null,
+            parentescojefenucleo: par?.parentescojefenucleo ?? null,
+            EsRepresentante: par?.EsRepresentante ?? null
+          };
+        });
+      } catch (ePar) {
+        console.warn('[HOGAR] parentesco/representante no disponible:', ePar.message);
+      }
+    }
+
     // Batch: ingreso progresivo de cada miembro del hogar
     let ingresoHogar = [];
     if (hogar.length > 0) {
@@ -1967,10 +2100,9 @@ WHERE rn = 1;
           `;
 
           const tIH = Date.now();
-          const ingresoHogarTimeoutMs = Number.parseInt(`${process.env.SQL_TIMEOUT_INGRESO_HOGAR_MS || '2800'}`, 10) || 2800;
           const [rIngresoHogar, rEstadoHogar] = await Promise.all([
-            withTimeout(pool.request().query(qIngresoHogar), ingresoHogarTimeoutMs, `Consulta ingresoHogar excedio ${ingresoHogarTimeoutMs}ms`),
-            withTimeout(pool.request().query(qEstadoHogar), ingresoHogarTimeoutMs, `Consulta estadoHogar excedio ${ingresoHogarTimeoutMs}ms`)
+            pool.request().query(qIngresoHogar),
+            pool.request().query(qEstadoHogar)
           ]);
 
           const estadoPorCedula = new Map(
@@ -2117,11 +2249,14 @@ WHERE rn = 1;
         console.log(`[TIMING] oracleHistorial: ${Date.now() - tOracle0}ms`);
       } catch (oracleErr) {
         console.warn('[ORACLE] Error consultando historial de cobros:', oracleErr.message);
+        // DESPUÉS:
         historialOracle = {
           ...historialCobros,
           enabled: true,
           available: false,
-          message: `No se pudo consultar Oracle en este momento. ${oracleErr.message || ''}`.trim()
+          message: `No se pudo consultar Oracle en este momento. ${oracleErr.message || ''}`.trim(),
+          detalleTransaccionRows: [],
+          historialPermanenteRows: []
         };
       }
     }
@@ -2131,10 +2266,7 @@ WHERE rn = 1;
     if (sqlContinuidadEnabled) {
       try {
         const oracleRowsBase = [
-          ...(historialOracle.bonosPagoCuenta || []),
-          ...(historialOracle.bonosVentanilla || []),
-          ...(historialOracle.milDiasPagoCuenta || []),
-          ...(historialOracle.milDiasVentanilla || [])
+          ...(historialOracle.historialPermanenteRows || [])
         ];
         const bonoRef = pickLatestBonoRef(oracleRowsBase);
         const subsidioPreferido = resolverSubsidioPreferidoHistorial({
@@ -2166,37 +2298,36 @@ WHERE rn = 1;
       }
     }
 
-    const sqlBonosCuenta = continuidadSqlRows.filter((r) => r.tipoPrograma === 'BONOS' && r.canalPago === 'CUENTA');
-    const sqlBonosVentanilla = continuidadSqlRows.filter((r) => r.tipoPrograma === 'BONOS' && r.canalPago === 'VENTANILLA');
-    const sqlMilDiasCuenta = continuidadSqlRows.filter((r) => r.tipoPrograma === '1000_DIAS' && r.canalPago === 'CUENTA');
-    const sqlMilDiasVentanilla = continuidadSqlRows.filter((r) => r.tipoPrograma === '1000_DIAS' && r.canalPago === 'VENTANILLA');
+    // DESPUÉS — reemplaza todo lo anterior con esto:
+    const todasLasFilas = mergeCobros3Fuentes({
+      detalleTransaccionRows: historialOracle.detalleTransaccionRows || [],
+      sqlContinuidadRows: continuidadSqlRows,
+      historialPermanenteRows: historialOracle.historialPermanenteRows || []
+    });
 
     historialCobros = {
       enabled: oracleHistorialEnabled || sqlContinuidadEnabled,
-      available: false,
+      available: todasLasFilas.length > 0,
       message: null,
       beneficiario: historialOracle.beneficiario || null,
       referenciaContinuidadSql: continuidadSqlMeta,
-      bonosPagoCuenta: mergeCobros(historialOracle.bonosPagoCuenta || [], sqlBonosCuenta),
-      bonosVentanilla: mergeCobros(historialOracle.bonosVentanilla || [], sqlBonosVentanilla),
-      milDiasPagoCuenta: mergeCobros(historialOracle.milDiasPagoCuenta || [], sqlMilDiasCuenta),
-      milDiasVentanilla: mergeCobros(historialOracle.milDiasVentanilla || [], sqlMilDiasVentanilla)
+      bonosPagoCuenta: todasLasFilas.filter((r) => r.tipoPrograma === 'BONOS' && r.canalPago === 'CUENTA'),
+      bonosVentanilla: todasLasFilas.filter((r) => r.tipoPrograma === 'BONOS' && r.canalPago === 'VENTANILLA'),
+      milDiasPagoCuenta: todasLasFilas.filter((r) => r.tipoPrograma === '1000_DIAS' && r.canalPago === 'CUENTA'),
+      milDiasVentanilla: todasLasFilas.filter((r) => r.tipoPrograma === '1000_DIAS' && r.canalPago === 'VENTANILLA'),
     };
-
-    const totalHistorial =
-      historialCobros.bonosPagoCuenta.length +
-      historialCobros.bonosVentanilla.length +
-      historialCobros.milDiasPagoCuenta.length +
-      historialCobros.milDiasVentanilla.length;
-
-    historialCobros.available = totalHistorial > 0;
 
     if (!historialCobros.available) {
       const oracleMsg = (historialOracle && historialOracle.message) || '';
       const noCodigoBenOracle = oracleMsg.toUpperCase().includes('NO EXISTE CODIGOBEN');
+      const apellidos = datosGenerales?.apellidos || '';
+      const nombres = datosGenerales?.nombres || '';
+      const quien = [apellidos, nombres].filter(Boolean).join(', ');
       historialCobros.message = noCodigoBenOracle
-        ? 'No existe CODIGOBEN en Oracle para la cedula consultada y SQL continuidad no reporta pagos en cuenta para esta cedula.'
-        : (oracleMsg || 'No se encontraron registros de historial en Oracle ni en continuidad SQL Server.');
+        ? 'No existen pagos para este usuario.'
+        : (oracleMsg || (quien
+          ? `No se encontraron registros de historial de cobros para ${quien}.`
+          : 'No se encontraron registros de historial de cobros.'));
     }
 
     return res.json({
@@ -2260,6 +2391,17 @@ app.use((err, req, res, next) => {
   return res.status(500).json({ success: false, message: 'Error interno del servidor.' });
 });
 
+
+// Pre-calentar pools al arrancar para que la primera petición no pierda tiempo
+if (hasOracleConfig()) {
+  getOraclePool()
+    .then(() => console.log('[ORACLE] Pool pre-calentado correctamente'))
+    .catch((err) => console.warn('[ORACLE] No se pudo pre-calentar el pool:', err.message));
+}
+
+getPool()
+  .then(() => console.log('[SQL] Pool pre-calentado correctamente'))
+  .catch((err) => console.warn('[SQL] No se pudo pre-calentar el pool:', err.message));
 
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, '0.0.0.0', function () {

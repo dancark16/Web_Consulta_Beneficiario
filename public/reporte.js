@@ -31,6 +31,22 @@ HTMLMediaElement.prototype.play = function () {
 
 const CODIGOS_EXCEPCION_HABILITADO = new Set([0, 27, 61, 70, 74, 75, 76, 77, 78, 79, 998]);
 
+const PARENTESCO_NUCLEO = {
+    1: 'Jefe(a) de Núcleo', 2: 'Esposo(a)/Conviviente', 3: 'Hijo(a)',
+    4: 'Otro familiar', 5: 'No familiar', 99: 'No aplica'
+};
+const PARENTESCO_HOGAR = {
+    1: 'Jefe(a) del Hogar', 2: 'Esposo(a)/Conviviente', 3: 'Hijo(a)',
+    4: 'Hijastro(a)', 5: 'Padre/Madre', 6: 'Suegro(a)', 7: 'Yerno/Nuera',
+    8: 'Nieto(a)', 9: 'Hermano(a)', 10: 'Cuñado(a)', 11: 'Otro familiar',
+    12: 'No familiar', 13: 'Servicio doméstico', 99: 'No aplica'
+};
+function decodificarParentesco(row) {
+    const cHogar = parseInt(row.parentescojefe, 10);
+    const cNucleo = parseInt(row.parentescojefenucleo, 10);
+    return PARENTESCO_HOGAR[cHogar] || PARENTESCO_NUCLEO[cNucleo] || 'NO CONSTA';
+}
+
 const EXCEPCION_TEXTO_A_CODIGO = {
     'ABRE TU CUENTA BANCARIA Y COBRA SEGURO TU BONO': 0,
     'BENEFICIARIO CON CUENTA EN LA BANCA': 27,
@@ -304,6 +320,14 @@ function renderizarTodo(data) {
 
     html += generarTablaPuntaje(data);
     html += generarTablaDatosGenerales(data);
+
+    const esMilDias = Array.isArray(data.bono1000) && data.bono1000.length > 0;
+    if (esMilDias) {
+        html += generarTablaGenerica(data.bono1000, 'bono1000',
+            ['cedula_beneficiario', 'nombre_ben', 'cedula_receptor', 'estado'],
+            'BONO 1000 DIAS', '#1a3a5c', 'SIN REGISTRO EN BONO 1000 DIAS');
+    }
+
     html += generarBloqueHistorialCobros(data);
     html += generarTablaContactabilidad(data);
 
@@ -313,9 +337,12 @@ function renderizarTodo(data) {
     html += generarTablaGenerica(data.menorDiscapacidad || [], 'discapacidad',
         ['CEDULA_REPRESENTANTE', 'CEDULA_MENOR', 'NOMBRES_MENOR', 'ESTADO'],
         'REPRESENTANTE MENOR CON DISCAPACIDAD', '#6f42c1', 'SIN DATOS DE DISCAPACIDAD');
-    html += generarTablaGenerica(data.bono1000 || [], 'bono1000',
-        ['cedula_beneficiario', 'nombre_ben', 'cedula_receptor', 'estado'],
-        'BONO 1000 DIAS', '#1a3a5c', 'SIN REGISTRO EN BONO 1000 DIAS');
+
+    if (!esMilDias) {
+        html += generarTablaGenerica(data.bono1000 || [], 'bono1000',
+            ['cedula_beneficiario', 'nombre_ben', 'cedula_receptor', 'estado'],
+            'BONO 1000 DIAS', '#1a3a5c', 'SIN REGISTRO EN BONO 1000 DIAS');
+    }
     html += generarTablaGenerica(data.iess || [], 'iess',
         ['CEDULA_BENEFICIARIO', 'NOMBRE', 'ANO', 'MES', 'SEGURO_C', 'vigencia'],
         'AFILIACION IESS', '#1a3a5c', 'SIN AFILIACION IESS');
@@ -892,16 +919,18 @@ function generarTablaNucleoFamiliar(data) {
 
     return `
                 <div class="section-header">NUCLEO FAMILIAR (MISMA VIVIENDA) - NUCLEO ${numeroNucleo}</div>
-                <div class="table-wrapper">
-                    <table class="tabla-familiar">
+                <div class="table-wrapper table-wrapper-nucleo">
+                    <table class="tabla-familiar tabla-nucleo">
                         <colgroup>
                             ${columnas.map(() => '<col>').join('')}
+                            <col style="min-width:140px">
+                            <col style="min-width:110px">
                             <col>
                             <col>
                             <col class="col-accion-col">
                         </colgroup>
                         <thead>
-                            <tr>${columnas.map(col => `<th>${escapeHTML(col.replace(/_/g, ' ').toUpperCase())}</th>`).join('')}<th>INGRESO PROGRESIVO</th><th>HABILITADO</th><th class="col-accion-vacia" aria-label="Acciones"></th></tr>
+                            <tr>${columnas.map(col => `<th>${escapeHTML(col.replace(/_/g, ' ').toUpperCase())}</th>`).join('')}<th>PARENTESCO</th><th>REPRESENTANTE</th><th>INGRESO PROGRESIVO</th><th>HABILITADO</th><th class="col-accion-vacia" aria-label="Acciones"></th></tr>
                         </thead>
                         <tbody>
                             ${filasNucleo.map(row => {
@@ -916,8 +945,20 @@ function generarTablaNucleoFamiliar(data) {
             ? 'color:#1a7f37;font-weight:bold'
             : 'color:#b42318;font-weight:600';
 
+        const cNucleo = parseInt(row.parentescojefenucleo, 10);
+        const parentescoTexto = PARENTESCO_NUCLEO[cNucleo] || 'NO CONSTA';
+
+        const esRepRaw = row.EsRepresentante ?? ingreso?.EsRepresentante;
+        const esRep = `${esRepRaw ?? ''}`.trim();
+        const esRepresentante = esRep === '1' || esRep.toLowerCase() === 'si' || esRep.toLowerCase() === 'true' || esRep.toLowerCase() === 's';
+        const representanteHTML = esRepresentante
+            ? '<span style="color:#1a7f37;font-weight:700">Representante</span>'
+            : '<span style="color:#888">No</span>';
+
         return `<tr>
                                     ${columnas.map(col => `<td>${row[col] || 'NO CONSTA'}</td>`).join('')}
+                                    <td>${escapeHTML(parentescoTexto)}</td>
+                                    <td>${representanteHTML}</td>
                                     <td>${ingresosTexto.length ? ingresosTexto.join(' | ') : 'NO'}</td>
                                     <td style="${estiloHabilitado}">${habilitadoMiembro}</td>
                                     <td class="col-accion">${generarAccionReporteHTML(row.cedula)}</td>
@@ -1218,6 +1259,21 @@ function obtenerDataTablaParaExport(tabla) {
             columnas: [...tabla._exportColumns],
             filas: [...tabla._exportRows.map((r) => [...r])]
         };
+    }
+
+    // Caso especial: tabla-datos-generales (layout 4 celdas por fila: label1|val1|label2|val2, sin thead)
+    if (tabla && tabla.classList && tabla.classList.contains('tabla-datos-generales')) {
+        const filas = [];
+        tabla.querySelectorAll('tbody tr').forEach((tr) => {
+            const tds = Array.from(tr.querySelectorAll('td'));
+            const label1 = `${tds[0]?.textContent || ''}`.trim();
+            const val1   = `${tds[1]?.textContent || ''}`.trim();
+            const label2 = `${tds[2]?.textContent || ''}`.trim();
+            const val2   = `${tds[3]?.textContent || ''}`.trim();
+            if (label1) filas.push([label1, val1 || 'NO CONSTA']);
+            if (label2) filas.push([label2, val2 || 'NO CONSTA']);
+        });
+        return { columnas: ['', ''], filas };
     }
 
     const headers = Array.from(tabla.querySelectorAll('thead th')).map((th) => `${th.innerText || ''}`.trim());
@@ -1549,7 +1605,7 @@ async function exportarPDF() {
                 doc.setFontSize(7.5);
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(100, 100, 100);
-                doc.text('Dirección de Administración de Datos  ·  Gestión de Calidad de la Información', ANCHO_PAGINA / 2, 206, { align: 'center' });
+                doc.text('Dirección de Administración de Datos', ANCHO_PAGINA / 2, 206, { align: 'center' });
                 doc.text(`Página ${p} de ${totalPaginas}`, ANCHO_PAGINA - 12, 206, { align: 'right' });
             }
 
@@ -2081,6 +2137,15 @@ window.addEventListener('DOMContentLoaded', () => {
         logo.addEventListener('error', () => {
             logo.style.display = 'none';
         });
+    }
+
+    const fechaPill = document.getElementById('header-fecha');
+    if (fechaPill) {
+        const ahora = new Date();
+        const fechaTexto = ahora.toLocaleDateString('es-EC', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        const fechaCapitalizada = fechaTexto.charAt(0).toUpperCase() + fechaTexto.slice(1);
+        const calSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="#ffc003" style="flex-shrink:0;vertical-align:middle"><path d="M19 3h-1V1h-2v2H8V1H6v2H5C3.9 3 3 3.9 3 5v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>`;
+        fechaPill.innerHTML = `${calSVG}${fechaCapitalizada}`;
     }
 
     const btnBuscar = document.getElementById('btn-buscar');
