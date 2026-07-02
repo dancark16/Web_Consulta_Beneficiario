@@ -822,6 +822,12 @@ main {
   color: #721c24;
 }
 
+.status-badge.pending {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffc107;
+}
+
 .section-header {
   background: #4500BF;
   color: white;

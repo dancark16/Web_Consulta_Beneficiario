@@ -121,6 +121,7 @@ function formatearFecha(valor) {
 function obtenerClaseEstado(estado) {
     const estadoUpper = (estado || '').toUpperCase();
     if (estadoUpper.includes('NO HABILITADO') || estadoUpper.includes('DESHABILITADO')) return 'bad';
+    if (estadoUpper.includes('PENDIENTE')) return 'pending';
     if (estadoUpper === 'HABILITADO' || estadoUpper.includes('HABILITADO')) return 'ok';
     if (estadoUpper === 'NO CONSTA') return '';
     return 'bad';
@@ -266,9 +267,35 @@ async function buscarBeneficiario() {
 
         const estaProtegida = reactivacion.estaProtegida === true && reactivacion.puntajesDifieren === true;
 
+        const CODIGOS_EXCEPCION_FORZADO_NO_HABILITADO = new Set([41, 55]);
+        const excepcionForzadaNoHabilitado =
+            reactivacion.excepcionForzadaNoHabilitado === true ||
+            (excepcionCodeFront !== null && CODIGOS_EXCEPCION_FORZADO_NO_HABILITADO.has(excepcionCodeFront));
+        const excepcionForzadaCodigo = reactivacion.excepcionForzadaCodigo ??
+            (CODIGOS_EXCEPCION_FORZADO_NO_HABILITADO.has(excepcionCodeFront) ? excepcionCodeFront : null);
+
+        const ETIQUETAS_EXCEPCION_FORZADA = {
+            55: 'NO HABILITADO - CAMBIO DE REPRESENTANTE'
+        };
+
+        // Detectar si la persona consultada tiene ingreso progresivo pendiente de activación (código 1)
+        const CLAVES_INGRESO_CODIGO = [
+            'BONO_DESARROLLO_HUMANO_CODIGO', 'BDH_CON_COMPONENTE_VARIABLE_CODIGO',
+            'PENSION_MIS_MEJORES_ANOS_CODIGO', 'PENSION_TODA_UNA_VIDA_CODIGO'
+        ];
+        const _normCed = (v) => `${v || ''}`.replace(/\D/g, '').trim();
+        const cedulaBuscadaNorm = _normCed(data.cedula);
+        const ingresoPropio = (data.ingresoProgresivo || []).find(
+            i => _normCed(i.cedula) === cedulaBuscadaNorm
+        );
+        const tieneIngresoSinActivar = !!ingresoPropio &&
+            CLAVES_INGRESO_CODIGO.some(k => `${ingresoPropio[k] ?? ''}`.trim() === '1');
+
         let estado;
         if (tieneHabilitado1000) {
             estado = 'HABILITADO 1000 DÍAS';
+        } else if (excepcionForzadaNoHabilitado) {
+            estado = ETIQUETAS_EXCEPCION_FORZADA[excepcionForzadaCodigo] || 'NO HABILITADO';
         } else if (estaProtegida) {
             estado = 'HABILITADO - PROTEGIDO';
         } else if (esCasoPrioritarioReactivacion) {
@@ -276,13 +303,13 @@ async function buscarBeneficiario() {
                 ? 'HABILITADO - REACTIVACIÓN DE PUNTAJE'
                 : (tieneCodigoExcepcionHabilitadoFront
                     ? 'HABILITADO'
-                    : 'NO HABILITADO - POSIBLE REACTIVACIÓN');
+                    : (tieneIngresoSinActivar ? 'PENDIENTE DE ACTIVACIÓN' : 'NO HABILITADO - POSIBLE REACTIVACIÓN'));
         } else if (tieneCodigoExcepcionHabilitadoFront) {
             estado = 'HABILITADO';
         } else if (tieneInclusion && tieneSubsidio && tieneExcepcion) {
             estado = 'HABILITADO - REACTIVACIÓN DE PUNTAJE';
         } else if (tieneInclusion) {
-            estado = 'NO HABILITADO - POSIBLE REACTIVACIÓN';
+            estado = tieneIngresoSinActivar ? 'PENDIENTE DE ACTIVACIÓN' : 'NO HABILITADO - POSIBLE REACTIVACIÓN';
         } else if (excepcionCodeFront !== null) {
             estado = 'NO HABILITADO';
         } else {
@@ -872,7 +899,7 @@ function construirEtiquetasIngresoProgresivo(ingreso) {
         }
 
         if (codigo === '1') {
-            etiquetas.push(`${r.etiqueta} SIN ACTIVACION`);
+            etiquetas.push(`${r.etiqueta} PENDIENTE`);
             continue;
         }
 

@@ -1904,6 +1904,21 @@ WHERE rn = 1;
 
       excepcionCodigoDetectado = resolverCodigoExcepcion(excepcionCodigoCorte, excepcionCorteRaw, excepcionVistaRaw, excepcionRaw);
 
+      // Si el corte tiene un código o texto que mapea a código forzado-no-habilitado,
+      // tiene prioridad sobre lo que la vista haya aportado
+      const CODIGOS_FORZADO_NO_HABILITADO = new Set([41]);
+      const codigoCorteDirecto = parseCodigo(excepcionCodigoCorte);
+      if (codigoCorteDirecto !== null && CODIGOS_FORZADO_NO_HABILITADO.has(codigoCorteDirecto)) {
+        excepcionCodigoDetectado = codigoCorteDirecto;
+      } else if (!CODIGOS_FORZADO_NO_HABILITADO.has(excepcionCodigoDetectado ?? -1)) {
+        const codCorteTexto = CODIGO_EXCEPCION_POR_TEXTO[normalizarTexto(excepcionCorteRaw)];
+        if (codCorteTexto !== undefined && CODIGOS_FORZADO_NO_HABILITADO.has(codCorteTexto)) {
+          excepcionCodigoDetectado = codCorteTexto;
+        }
+      }
+
+      console.log(`[DEBUG excepcion] cedula=${cedula} | codigoCorte=${excepcionCodigoCorte} | corteRaw=${excepcionCorteRaw} | vistaRaw=${excepcionVistaRaw} | detectado=${excepcionCodigoDetectado}`);
+
       base.subsidio_final = mapSubsidioTexto(subsidioRaw);
       base.excepcion_final = mapExcepcionTexto(excepcionRaw);
 
@@ -2052,6 +2067,26 @@ WHERE rn = 1;
       }
     }
 
+    // Lanzar Oracle historial en paralelo antes de esperar ingresoHogar
+    const oracleHistorialEnabled = `${process.env.ORACLE_HISTORIAL_ENABLED || 'true'}`.toLowerCase() !== 'false';
+    const sqlContinuidadEnabled = `${process.env.SQL_CONTINUIDAD_HISTORIAL_ENABLED || 'true'}`.toLowerCase() !== 'false';
+    const oracleTimeoutMs = Number.parseInt(`${process.env.ORACLE_QUERY_TIMEOUT_MS || '7000'}`, 10) || 7000;
+    const tOracle0 = Date.now();
+    const _oracleHistorialFallback = {
+      enabled: true, available: false,
+      message: 'Historial Oracle deshabilitado por configuracion.',
+      beneficiario: null, detalleTransaccionRows: [], historialPermanenteRows: [],
+      milDiasPagoCuenta: [], milDiasVentanilla: []
+    };
+    const oracleHistorialPromise = oracleHistorialEnabled
+      ? withTimeout(obtenerHistorialCobrosOracle(cedula), oracleTimeoutMs, `Oracle excedio el tiempo maximo de ${oracleTimeoutMs}ms`)
+          .then(r  => { console.log(`[TIMING] oracleHistorial: ${Date.now() - tOracle0}ms`); return r; })
+          .catch(e => {
+            console.warn('[ORACLE] Error consultando historial de cobros:', e.message);
+            return { ..._oracleHistorialFallback, message: `No se pudo consultar Oracle en este momento. ${e.message || ''}`.trim() };
+          })
+      : Promise.resolve(_oracleHistorialFallback);
+
     // Batch: ingreso progresivo de cada miembro del hogar
     let ingresoHogar = [];
     if (hogar.length > 0) {
@@ -2087,46 +2122,16 @@ WHERE rn = 1;
             WHERE cedula IN (${inList})
           `;
 
-          const qEstadoHogar = `
-            SELECT
-              cedula,
-              estado,
-              excepcion_final
-            FROM dbo.VISTA_REP_DATOS_GENERALES
-            WHERE cedula IN (${inList})
-          `;
-
           const tIH = Date.now();
-          const [rIngresoHogar, rEstadoHogar] = await Promise.all([
-            pool.request().query(qIngresoHogar),
-            pool.request().query(qEstadoHogar)
-          ]);
-
-          const estadoPorCedula = new Map(
-            (rEstadoHogar.recordset || []).map((row) => [
-              `${row.cedula || ''}`.trim(),
-              {
-                estado: row.estado,
-                excepcion_final: row.excepcion_final
-              }
-            ])
-          );
+          const rIngresoHogar = await pool.request().query(qIngresoHogar);
 
           ingresoHogar = (rIngresoHogar.recordset || []).map(row => {
-            const key = `${row.cedula || ''}`.trim();
-            const estadoInfo = estadoPorCedula.get(key) || null;
-            const estadoRaw = `${estadoInfo?.estado || ''}`.trim().toUpperCase();
-            const excepcionCodigo = resolverCodigoExcepcion(
-              estadoInfo?.excepcion_final,
-              row.excepcion_final
-            );
-            const habPorEstado = estadoRaw === 'HABILITADO' || estadoRaw.startsWith('HABILITADO ');
+            const excepcionCodigo = resolverCodigoExcepcion(row.excepcion_final);
             const habPorCodigo = excepcionCodigo !== null && [0, 27, 61, 70, 74, 75, 76, 77, 78, 79, 998].includes(excepcionCodigo);
             return {
               ...row,
-              estado: estadoInfo?.estado || row.estado || null,
-              excepcion_final: estadoInfo?.excepcion_final || row.excepcion_final || null,
-              habilitado: (habPorEstado || habPorCodigo) ? 'SI' : 'NO'
+              excepcion_final: row.excepcion_final || null,
+              habilitado: habPorCodigo ? 'SI' : 'NO'
             };
           });
           console.log(`[TIMING] ingresoHogar(${cedulasHogar.length} miembros): ${Date.now() - tIH}ms`);
@@ -2175,8 +2180,21 @@ WHERE rn = 1;
       hasTextValue(datosGeneralesCorte?.excepcion_EDMBEN) ||
       hasTextValue(datosGeneralesCorte?.codigo_tipo_excepcion);
     const CODIGOS_EXCEPCION_HABILITADO = new Set([0, 27, 61, 70, 74, 75, 76, 77, 78, 79, 998]);
-    const tieneCodigoExcepcionHabilitado = excepcionCodigoDetectado !== null && CODIGOS_EXCEPCION_HABILITADO.has(excepcionCodigoDetectado);
-    const estaReactivado = tieneInclusionFlag && tieneSubsidioFinal && tieneExcepcionFinal;
+    const CODIGOS_EXCEPCION_SIEMPRE_NO_HABILITADO = new Set([41, 55]);
+    const _candCorte1 = parseCodigo(datosGeneralesCorte?.codigo_tipo_excepcion);
+    const _candCorte2 = parseCodigo(datosGeneralesCorte?.excepcion_final);
+    let excepcionForzadaCodigo = null;
+    if (CODIGOS_EXCEPCION_SIEMPRE_NO_HABILITADO.has(excepcionCodigoDetectado)) {
+      excepcionForzadaCodigo = excepcionCodigoDetectado;
+    } else if (CODIGOS_EXCEPCION_SIEMPRE_NO_HABILITADO.has(_candCorte1)) {
+      excepcionForzadaCodigo = _candCorte1;
+    } else if (CODIGOS_EXCEPCION_SIEMPRE_NO_HABILITADO.has(_candCorte2)) {
+      excepcionForzadaCodigo = _candCorte2;
+    }
+    const excepcionForzadaNoHabilitadoServer = excepcionForzadaCodigo !== null;
+    const tieneCodigoExcepcionHabilitado = !excepcionForzadaNoHabilitadoServer &&
+      excepcionCodigoDetectado !== null && CODIGOS_EXCEPCION_HABILITADO.has(excepcionCodigoDetectado);
+    const estaReactivado = !excepcionForzadaNoHabilitadoServer && tieneInclusionFlag && tieneSubsidioFinal && tieneExcepcionFinal;
 
     // ESTA_PROT: persona protegida (puntaje no se actualiza en tabla general)
     const estaProtegida = datosGeneralesCorte?.ESTA_PROT == 1 || datosGeneralesCorte?.ESTA_PROT === '1';
@@ -2191,6 +2209,8 @@ WHERE rn = 1;
       tieneExcepcionFinal,
       excepcionCodigoDetectado,
       tieneCodigoExcepcionHabilitado,
+      excepcionForzadaNoHabilitado: excepcionForzadaNoHabilitadoServer,
+      excepcionForzadaCodigo,
       estaReactivado,
       estaProtegida,
       puntajesDifieren,
@@ -2226,37 +2246,8 @@ WHERE rn = 1;
       milDiasVentanilla: []
     };
 
-    const oracleHistorialEnabled = `${process.env.ORACLE_HISTORIAL_ENABLED || 'true'}`.toLowerCase() !== 'false';
-    const sqlContinuidadEnabled = `${process.env.SQL_CONTINUIDAD_HISTORIAL_ENABLED || 'true'}`.toLowerCase() !== 'false';
-
-    let historialOracle = {
-      ...historialCobros,
-      message: 'Historial Oracle deshabilitado por configuracion.'
-    };
-
-    if (oracleHistorialEnabled) {
-      try {
-        const oracleTimeoutMs = Number.parseInt(`${process.env.ORACLE_QUERY_TIMEOUT_MS || '7000'}`, 10) || 7000;
-        const tOracle0 = Date.now();
-        historialOracle = await withTimeout(
-          obtenerHistorialCobrosOracle(cedula),
-          oracleTimeoutMs,
-          `Oracle excedio el tiempo maximo de ${oracleTimeoutMs}ms`
-        );
-        console.log(`[TIMING] oracleHistorial: ${Date.now() - tOracle0}ms`);
-      } catch (oracleErr) {
-        console.warn('[ORACLE] Error consultando historial de cobros:', oracleErr.message);
-        // DESPUÉS:
-        historialOracle = {
-          ...historialCobros,
-          enabled: true,
-          available: false,
-          message: `No se pudo consultar Oracle en este momento. ${oracleErr.message || ''}`.trim(),
-          detalleTransaccionRows: [],
-          historialPermanenteRows: []
-        };
-      }
-    }
+    // Oracle ya fue lanzado en paralelo con ingresoHogar — solo esperamos el resultado aquí
+    const historialOracle = await oracleHistorialPromise;
 
     let continuidadSqlRows = [];
     let continuidadSqlMeta = null;
