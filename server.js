@@ -226,6 +226,150 @@ async function getOraclePool() {
   }
 }
 
+// =============== JOVENES EN ACCION: credenciales/servidor propios (192.168.98.206) ===============
+let jovenesPoolPromise = null;
+
+const jovenesDbConfig = {
+  user: process.env.JOVENES_DB_USER,
+  password: process.env.JOVENES_DB_PASSWORD,
+  server: process.env.JOVENES_DB_SERVER || '192.168.98.206',
+  database: process.env.JOVENES_DB_NAME || 'JOVENES_ACCION_3_HISTORICO',
+  options: {
+    encrypt: false,
+    trustServerCertificate: true
+  },
+  pool: {
+    max: 5,
+    min: 0,
+    idleTimeoutMillis: 30000
+  },
+  connectionTimeout: 15000,
+  requestTimeout: 30000
+};
+
+const hasJovenesConfig = () => (
+  !!jovenesDbConfig.user &&
+  !!jovenesDbConfig.password &&
+  !!jovenesDbConfig.server &&
+  !!jovenesDbConfig.database
+);
+
+async function getJovenesPool() {
+  if (!hasJovenesConfig()) {
+    return null;
+  }
+
+  if (jovenesPoolPromise) {
+    return jovenesPoolPromise;
+  }
+
+  jovenesPoolPromise = (async () => {
+    console.log('[JOVENES] Inicializando pool de conexion');
+    return new sql.ConnectionPool(jovenesDbConfig).connect();
+  })();
+
+  try {
+    return await jovenesPoolPromise;
+  } catch (err) {
+    jovenesPoolPromise = null;
+    throw err;
+  }
+}
+
+async function obtenerJovenesAccion(cedula) {
+  const emptyResponse = {
+    enabled: false,
+    available: false,
+    message: 'Consulta a Jovenes en Accion no configurada (faltan credenciales JOVENES_DB_*).',
+    rows: []
+  };
+
+  if (!hasJovenesConfig()) {
+    return emptyResponse;
+  }
+
+  let pool;
+  try {
+    pool = await getJovenesPool();
+  } catch (err) {
+    console.warn('[JOVENES] Error conectando al pool:', err.message);
+    return {
+      ...emptyResponse,
+      enabled: true,
+      message: `No se pudo conectar a la base Jovenes en Accion: ${err.message}`
+    };
+  }
+
+  if (!pool) {
+    return emptyResponse;
+  }
+
+  try {
+    const qJovenesAccion = `
+      SELECT
+        [NUMERO_REFERENCIA],
+        [MONTO],
+        [CODIGO_OPI],
+        [CUENTA_BENEFICIARIO],
+        [NOMBRES],
+        [CEDULA],
+        [EJECUTOR],
+        [area],
+        [destreza],
+        [PROVINCIA],
+        [CANTON],
+        [PARROQUIA],
+        [direccion],
+        [telefono],
+        [correo],
+        [ENTIDAD BANCARIA],
+        [FECHATRANSACCION],
+        [ESTADO]
+      FROM [JOVENES_ACCION_3_HISTORICO].[dbo].[BASE_TOTAL_JOVENES_DPA]
+      WHERE [CEDULA] = @cedula
+      ORDER BY [FECHATRANSACCION] DESC
+    `;
+
+    const rs = await pool.request()
+      .input('cedula', sql.VarChar(20), cedula)
+      .query(qJovenesAccion);
+
+    // Regla de negocio: 'OPI ACREDITADA' = pagado; cualquier otro estado = no pagado.
+    // Nunca se muestra la sigla "OPI" al usuario, solo PAGADO/NO PAGADO + la observacion original sin "OPI".
+        const rows = (rs.recordset || []).map((r) => {
+      const estadoRaw = `${r.ESTADO || ''}`.trim();
+      const pagado = estadoRaw.toUpperCase() === 'OPI ACREDITADA';
+      const observacion = estadoRaw
+        .replace(/OPI/gi, '')
+        .replace(/RECHAZAD[OA]S?/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/^[\s,]+|[\s,]+$/g, '')
+        .trim();
+
+      return {
+        ...r,
+        ESTADO_PAGO: pagado ? 'PAGADO' : 'NO PAGADO',
+        OBSERVACION: observacion || (pagado ? 'ACREDITADA' : estadoRaw)
+      };
+    });
+
+    return {
+      enabled: true,
+      available: rows.length > 0,
+      message: rows.length ? null : 'No se encontraron registros en Jovenes en Accion para esta cedula.',
+      rows
+    };
+  } catch (err) {
+    console.warn('[JOVENES] Error consultando BASE_TOTAL_JOVENES_DPA:', err.message);
+    return {
+      enabled: true,
+      available: false,
+      message: `Error consultando Jovenes en Accion: ${err.message}`,
+      rows: []
+    };
+  }
+}
+
 function normalizarCodigoben(valor) {
   const raw = `${valor ?? ''}`;
   return raw.replace(/\D/g, '');
@@ -2087,6 +2231,15 @@ WHERE rn = 1;
           })
       : Promise.resolve(_oracleHistorialFallback);
 
+    // Lanzar consulta a Jovenes en Accion en paralelo (servidor/credenciales propios)
+    const tJovenes0 = Date.now();
+    const jovenesAccionPromise = obtenerJovenesAccion(cedula)
+      .then((r) => { console.log(`[TIMING] jovenesAccion: ${Date.now() - tJovenes0}ms`); return r; })
+      .catch((e) => {
+        console.warn('[JOVENES] Error inesperado consultando Jovenes en Accion:', e.message);
+        return { enabled: true, available: false, message: `Error inesperado: ${e.message || ''}`.trim(), rows: [] };
+      });
+
     // Batch: ingreso progresivo de cada miembro del hogar
     let ingresoHogar = [];
     if (hogar.length > 0) {
@@ -2248,6 +2401,7 @@ WHERE rn = 1;
 
     // Oracle ya fue lanzado en paralelo con ingresoHogar — solo esperamos el resultado aquí
     const historialOracle = await oracleHistorialPromise;
+    const jovenesAccion = await jovenesAccionPromise;
 
     let continuidadSqlRows = [];
     let continuidadSqlMeta = null;
@@ -2336,7 +2490,8 @@ WHERE rn = 1;
       registroSocialCorte,
       inclusionFlags,
       reactivacion,
-      historialCobros
+      historialCobros,
+      jovenesAccion
     });
   } catch (err) {
     console.error('Error en /buscarBeneficiario:', err.message || err);
@@ -2390,6 +2545,14 @@ if (hasOracleConfig()) {
 getPool()
   .then(() => console.log('[SQL] Pool pre-calentado correctamente'))
   .catch((err) => console.warn('[SQL] No se pudo pre-calentar el pool:', err.message));
+
+if (hasJovenesConfig()) {
+  getJovenesPool()
+    .then(() => console.log('[JOVENES] Pool pre-calentado correctamente'))
+    .catch((err) => console.warn('[JOVENES] No se pudo pre-calentar el pool:', err.message));
+} else {
+  console.warn('[JOVENES] Consulta deshabilitada: defina JOVENES_DB_USER/JOVENES_DB_PASSWORD en .env.');
+}
 
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, '0.0.0.0', function () {

@@ -1227,6 +1227,52 @@ td {
   padding: 4px 9px;
 }
 
+
+.tabla-jovenes-accion .ref-pill {
+  display: inline-block;
+  background: #e8e8f8;
+  border: 1px solid #c0c0e8;
+  color: #2d2d96;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.tabla-jovenes-accion .codigo-pill {
+  display: inline-block;
+  background: linear-gradient(90deg, #eef0ff, #f5f5ff);
+  border-left: 4px solid #2d2d96;
+  border-radius: 10px;
+  padding: 5px 9px;
+}
+
+.tabla-jovenes-accion .monto-pill {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  background: #e9fff3;
+  border: 1px solid #bcf2d5;
+  color: #0f6a3f;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-weight: 700;
+}
+
+.tabla-jovenes-accion .fecha-pill {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: #2d2d96;
+  font-weight: 600;
+}
+
+.tabla-jovenes-accion .observacion-pill {
+  display: inline-block;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  color: #b07800;
+  border-radius: 10px;
+  padding: 4px 9px;
+}
+
 .tabla-historial-cobros th:nth-child(1),
 .tabla-historial-cobros td:nth-child(1) {
   width: 14%;

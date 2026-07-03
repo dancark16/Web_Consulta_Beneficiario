@@ -102,6 +102,11 @@ function esEstadoHabilitado(estado) {
     return txt === 'HABILITADO' || txt.startsWith('HABILITADO ');
 }
 
+function esBeneficiarioJovenesAccion(data) {
+    const filas = data?.jovenesAccion?.rows;
+    return Array.isArray(filas) && filas.length > 0;
+}
+
 function mostrarCargando(mostrar) {
     const overlay = document.getElementById('overlay-cargando');
     if (mostrar) {
@@ -118,8 +123,24 @@ function formatearFecha(valor) {
     return valor;
 }
 
+function formatearFechaSoloDia(valor) {
+    if (!valor || valor === 'NULL') return 'NO CONSTA';
+    const texto = `${valor}`.trim();
+
+    // ISO: 2026-07-01T20:06:13...
+    const isoMatch = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+    // DD/MM/YYYY o DD/MM/YYYY HH:mm:ss
+    const dmyMatch = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (dmyMatch) return `${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`;
+
+    return texto;
+}
+
 function obtenerClaseEstado(estado) {
     const estadoUpper = (estado || '').toUpperCase();
+    if (estadoUpper === 'JOVENES EN ACCION') return 'ok';
     if (estadoUpper.includes('NO HABILITADO') || estadoUpper.includes('DESHABILITADO')) return 'bad';
     if (estadoUpper.includes('PENDIENTE')) return 'pending';
     if (estadoUpper === 'HABILITADO' || estadoUpper.includes('HABILITADO')) return 'ok';
@@ -291,8 +312,12 @@ async function buscarBeneficiario() {
         const tieneIngresoSinActivar = !!ingresoPropio &&
             CLAVES_INGRESO_CODIGO.some(k => `${ingresoPropio[k] ?? ''}`.trim() === '1');
 
+        const jovenesAccionDisponible = esBeneficiarioJovenesAccion(data);
+
         let estado;
-        if (tieneHabilitado1000) {
+        if (jovenesAccionDisponible) {
+            estado = 'JOVENES EN ACCION';
+        } else if (tieneHabilitado1000) {
             estado = 'HABILITADO 1000 DÍAS';
         } else if (excepcionForzadaNoHabilitado) {
             estado = ETIQUETAS_EXCEPCION_FORZADA[excepcionForzadaCodigo] || 'NO HABILITADO';
@@ -347,6 +372,7 @@ function renderizarTodo(data) {
 
     html += generarTablaPuntaje(data);
     html += generarTablaDatosGenerales(data);
+    html += generarTablaJovenesAccion(data);
 
     const esMilDias = Array.isArray(data.bono1000) && data.bono1000.length > 0;
     if (esMilDias) {
@@ -386,7 +412,9 @@ function renderizarTodo(data) {
 }
 
 function generarBloqueHistorialCobros(data) {
-        const accionesExportacionHistorial = `
+    if (esBeneficiarioJovenesAccion(data)) return '';
+
+    const accionesExportacionHistorial = `
             <div class="historial-export-actions" role="group" aria-label="Exportar historial de cobros">
                 <span class="historial-export-label">EXPORTAR HISTORIAL -&gt;</span>
                 <button type="button" id="btn-exportar-historial-pdf" class="btn-export-historial btn-brand-yellow">PDF</button>
@@ -625,14 +653,14 @@ function generarBloqueHistorialCobros(data) {
             <div class="historial-identificador">${escapeHTML(titulo)}</div>
             <div class="historial-anios-wrap">
                 ${aniosOrdenados.map((anio, indexAnio) => {
-                    const registrosAnio = rowsByAnio[anio] || [];
-                    const registrosOrdenados = [...registrosAnio].sort((ra, rb) => {
-                        const mesA = MESES_ORDEN[extraerMes(ra)] || 0;
-                        const mesB = MESES_ORDEN[extraerMes(rb)] || 0;
-                        return mesB - mesA;
-                    });
+            const registrosAnio = rowsByAnio[anio] || [];
+            const registrosOrdenados = [...registrosAnio].sort((ra, rb) => {
+                const mesA = MESES_ORDEN[extraerMes(ra)] || 0;
+                const mesB = MESES_ORDEN[extraerMes(rb)] || 0;
+                return mesB - mesA;
+            });
 
-                    return `
+            return `
                         <details class="historial-anio" ${indexAnio === 0 ? 'open' : ''}>
                             <summary class="historial-anio-toggle">${escapeHTML(anio)} (${registrosOrdenados.length})</summary>
                             <div class="table-wrapper">
@@ -677,7 +705,7 @@ function generarBloqueHistorialCobros(data) {
                             </div>
                         </details>
                     `;
-                }).join('')}
+        }).join('')}
             </div>
         `;
     };
@@ -771,15 +799,21 @@ function generarTablaDatosGenerales(data) {
         { label: 'CONDICION CEDULADO', value: dg.condicion_cedulado_rc || 'NO CONSTA' },
         { label: 'EDAD', value: dg.edad_rs || dg.edad_persona || 'NO CONSTA' },
         { label: 'BANDA POBREZA', value: dg.banda_pobreza || 'NO CONSTA' },
-        { label: 'DECIL', value: escapeHTML(`${decil}`) || 'NO CONSTA' },
-        { label: 'SUBSIDIO FINAL', value: dg.subsidio_final || 'NO CONSTA' },
-        { label: 'EXCEPCION FINAL', value: dg.excepcion_final || 'NO CONSTA' },
-        // JORDY CHILA NUEVOS CAMPOS (FECHAS DESDE SC_CED_BEN_TOTAL)
-        { label: 'FECHA INICIO', value: formatearFecha(dg.FECHA_INICIO) || 'NO CONSTA' },
-        { label: 'FECHA FIN', value: formatearFecha(dg.FECHA_FIN) || 'NO CONSTA' },
-        { label: 'TIPO INCLUSION', value: inclusion.TIPO_INCLUSION || 'NO CONSTA' },
-        { label: 'GRUPO INCLUSION', value: inclusion.GRUPO_INCLUSION || 'NO CONSTA' }
+        { label: 'DECIL', value: escapeHTML(`${decil}`) || 'NO CONSTA' }
     ];
+
+    // Campos de subsidio/reactivacion BDH: no aplican a beneficiarios de Jovenes en Accion
+    if (!esBeneficiarioJovenesAccion(data)) {
+        campos.push(
+            { label: 'SUBSIDIO FINAL', value: dg.subsidio_final || 'NO CONSTA' },
+            { label: 'EXCEPCION FINAL', value: dg.excepcion_final || 'NO CONSTA' },
+            // JORDY CHILA NUEVOS CAMPOS (FECHAS DESDE SC_CED_BEN_TOTAL)
+            { label: 'FECHA INICIO', value: formatearFecha(dg.FECHA_INICIO) || 'NO CONSTA' },
+            { label: 'FECHA FIN', value: formatearFecha(dg.FECHA_FIN) || 'NO CONSTA' },
+            { label: 'TIPO INCLUSION', value: inclusion.TIPO_INCLUSION || 'NO CONSTA' },
+            { label: 'GRUPO INCLUSION', value: inclusion.GRUPO_INCLUSION || 'NO CONSTA' }
+        );
+    }
 
     const filas = [];
     for (let i = 0; i < campos.length; i += 2) {
@@ -932,7 +966,7 @@ function generarTablaNucleoFamiliar(data) {
     const normalizarCedula = (v) => `${v || ''}`.replace(/\D/g, '').trim();
     const normalizarNucleo = (v) => `${v ?? ''}`.trim();
     const fuenteIngreso = data.ingresoHogar || data.ingresoProgresivo || [];
-    const columnas = ['fechaencuesta', 'cedula', 'apellidos', 'nombres', 'edad_persona', 'puntaje', 'fechanacimiento', 'certificado', 'numeronucleo'];
+    const columnas = ['fechaencuesta', 'cedula', 'apellidos', 'nombres', 'edad_persona', 'puntaje', 'fechanacimiento', 'numeronucleo'];
 
     const cedulaTitular = normalizarCedula(data.cedula || data.datosGenerales?.cedula || data.datosRS?.cedula);
     const filaTitular = hogar.find((row) => normalizarCedula(row.cedula) === cedulaTitular);
@@ -1004,7 +1038,7 @@ function generarTablaHogar(data) {
     const normalizarCedula = (v) => `${v || ''}`.replace(/\D/g, '').trim();
     const fuenteIngreso = data.ingresoHogar || data.ingresoProgresivo || [];
 
-    const columnas = ['fechaencuesta', 'cedula', 'apellidos', 'nombres', 'edad_persona', 'puntaje', 'fechanacimiento', 'certificado', 'numeronucleo'];
+    const columnas = ['fechaencuesta', 'cedula', 'apellidos', 'nombres', 'edad_persona', 'puntaje', 'fechanacimiento', 'numeronucleo'];
 
     return `
                 <div class="section-header">HOGAR FAMILIAR (REGISTRO SOCIAL COMPLETO)</div>
@@ -1075,6 +1109,79 @@ function generarTablaBasesExternas(data) {
             `;
 }
 
+function generarTablaJovenesAccion(data) {
+    const jovenes = data.jovenesAccion || {};
+    const filas = Array.isArray(jovenes.rows) ? jovenes.rows : [];
+    if (!filas.length) return '';
+
+    const renderEstadoBadge = (row) => {
+        const pagado = row.ESTADO_PAGO === 'PAGADO';
+        const clase = pagado ? 'status-badge-ok' : 'status-badge-bad';
+        const badge = `<span class="status-badge ${clase}" style="padding:4px 10px;font-size:12px;">${escapeHTML(row.ESTADO_PAGO)}</span>`;
+
+        if (pagado) return badge;
+
+        const observacion = `${row.OBSERVACION || ''}`.trim();
+        if (!observacion) return badge;
+
+        return `${badge} <span class="observacion-pill">${escapeHTML(observacion)}</span>`;
+    };
+
+    const renderRegistro = (row) => {
+        // NOMBRES y CEDULA se omiten: ya se muestran en DATOS GENERALES
+        const campos = [
+            { label: 'NUMERO REFERENCIA', value: `<span class="ref-pill">${escapeHTML(row.NUMERO_REFERENCIA) || 'NO CONSTA'}</span>` },
+            { label: 'MONTO', value: `<span class="monto-pill">${escapeHTML(formatearMontoCobro(row.MONTO))}</span>` },
+            { label: 'CODIGO OPI', value: `<span class="codigo-pill">${escapeHTML(row.CODIGO_OPI) || 'NO CONSTA'}</span>` },
+            { label: 'CUENTA BENEFICIARIO', value: escapeHTML(row.CUENTA_BENEFICIARIO) || 'NO CONSTA' },
+            { label: 'EJECUTOR', value: escapeHTML(row.EJECUTOR) || 'NO CONSTA' },
+            { label: 'AREA', value: escapeHTML(row.area) || 'NO CONSTA' },
+            { label: 'DESTREZA', value: escapeHTML(row.destreza) || 'NO CONSTA' },
+            { label: 'PROVINCIA', value: escapeHTML(row.PROVINCIA) || 'NO CONSTA' },
+            { label: 'CANTON', value: escapeHTML(row.CANTON) || 'NO CONSTA' },
+            { label: 'PARROQUIA', value: escapeHTML(row.PARROQUIA) || 'NO CONSTA' },
+            { label: 'DIRECCION', value: escapeHTML(row.direccion) || 'NO CONSTA' },
+            { label: 'TELEFONO', value: escapeHTML(row.telefono) || 'NO CONSTA' },
+            { label: 'CORREO', value: escapeHTML(row.correo) || 'NO CONSTA' },
+            { label: 'ENTIDAD BANCARIA', value: escapeHTML(row['ENTIDAD BANCARIA']) || 'NO CONSTA' },
+            { label: 'FECHA TRANSACCION', value: `<span class="fecha-pill">${escapeHTML(formatearFechaSoloDia(row.FECHATRANSACCION))}</span>` },
+            { label: 'ESTADO', value: renderEstadoBadge(row) },
+        ];
+
+        const filasPar = [];
+        for (let i = 0; i < campos.length; i += 2) {
+            filasPar.push([campos[i], campos[i + 1] || null]);
+        }
+
+        return `
+            <div class="table-wrapper">
+                <table class="tabla-datos-generales tabla-jovenes-accion">
+                    <tbody>
+                        ${filasPar.map(([campoA, campoB]) => `
+                            <tr>
+                                <td class="dg-label"><span>${campoA.label}</span></td>
+                                <td class="dg-value">${campoA.value}</td>
+                                <td class="dg-label ${campoB ? '' : 'dg-empty'}"><span>${campoB ? campoB.label : ''}</span></td>
+                                <td class="dg-value ${campoB ? '' : 'dg-empty'}">${campoB ? campoB.value : ''}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    };
+
+    return `
+                <div class="section-header">JOVENES EN ACCION</div>
+                ${filas.map((row, idx) => `
+                    ${filas.length > 1 ? `<div class="historial-identificador">REGISTRO ${idx + 1} - REF. ${escapeHTML(row.NUMERO_REFERENCIA) || 'N/D'}</div>` : ''}
+                    ${renderRegistro(row)}
+                `).join('')}
+            `;
+}
+
+
+
 function generarTablaPuntaje(data) {
     const puntaje = (data.puntajeHistorico && data.puntajeHistorico[0]) || {};
     const campos = ['Puntaje_Actual', 'Puntaje_Anterior_1', 'Puntaje_Anterior_2', 'Puntaje_Anterior_3', 'Puntaje_Anterior_4'];
@@ -1111,6 +1218,7 @@ function obtenerSeccionesOrdenExportacion() {
     const ORDEN_PREFERIDO = [
         'HISTORIAL DE PUNTAJE RS',
         'DATOS GENERALES',
+        'JOVENES EN ACCION',
         'HISTORIAL DE COBROS PAGO EN CUENTA BONOS',
         'HISTORIAL DE COBROS PAGO EN VENTANILLA BONOS',
         'HISTORIAL DE COBROS 1000 DIAS PAGO EN CUENTA',
@@ -1294,9 +1402,9 @@ function obtenerDataTablaParaExport(tabla) {
         tabla.querySelectorAll('tbody tr').forEach((tr) => {
             const tds = Array.from(tr.querySelectorAll('td'));
             const label1 = `${tds[0]?.textContent || ''}`.trim();
-            const val1   = `${tds[1]?.textContent || ''}`.trim();
+            const val1 = `${tds[1]?.textContent || ''}`.trim();
             const label2 = `${tds[2]?.textContent || ''}`.trim();
-            const val2   = `${tds[3]?.textContent || ''}`.trim();
+            const val2 = `${tds[3]?.textContent || ''}`.trim();
             if (label1) filas.push([label1, val1 || 'NO CONSTA']);
             if (label2) filas.push([label2, val2 || 'NO CONSTA']);
         });
