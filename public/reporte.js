@@ -140,7 +140,7 @@ function formatearFechaSoloDia(valor) {
 
 function obtenerClaseEstado(estado) {
     const estadoUpper = (estado || '').toUpperCase();
-    if (estadoUpper === 'JOVENES EN ACCION') return 'ok';
+    if (estadoUpper.includes('JOVENES EN ACCION')) return 'ok';
     if (estadoUpper.includes('NO HABILITADO') || estadoUpper.includes('DESHABILITADO')) return 'bad';
     if (estadoUpper.includes('PENDIENTE')) return 'pending';
     if (estadoUpper === 'HABILITADO' || estadoUpper.includes('HABILITADO')) return 'ok';
@@ -313,10 +313,13 @@ async function buscarBeneficiario() {
             CLAVES_INGRESO_CODIGO.some(k => `${ingresoPropio[k] ?? ''}`.trim() === '1');
 
         const jovenesAccionDisponible = esBeneficiarioJovenesAccion(data);
+        const jovenesAccionEtiqueta = jovenesAccionDisponible
+            ? (data.jovenesAccion.rows[0]?.ETIQUETA_PROGRAMA || 'JOVENES EN ACCION')
+            : null;
 
         let estado;
         if (jovenesAccionDisponible) {
-            estado = 'JOVENES EN ACCION';
+            estado = jovenesAccionEtiqueta;
         } else if (tieneHabilitado1000) {
             estado = 'HABILITADO 1000 DÍAS';
         } else if (excepcionForzadaNoHabilitado) {

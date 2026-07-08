@@ -324,7 +324,8 @@ async function obtenerJovenesAccion(cedula) {
         [correo],
         [ENTIDAD BANCARIA],
         [FECHATRANSACCION],
-        [ESTADO]
+        [ESTADO],
+        [OBSERVACION_PAGO]
       FROM [JOVENES_ACCION_3_HISTORICO].[dbo].[BASE_TOTAL_JOVENES_DPA]
       WHERE [CEDULA] = @cedula
       ORDER BY [FECHATRANSACCION] DESC
@@ -346,10 +347,17 @@ async function obtenerJovenesAccion(cedula) {
         .replace(/^[\s,]+|[\s,]+$/g, '')
         .trim();
 
+      // Fase del programa (ej. "FASE 1", "FASE 2") viene de OBSERVACION_PAGO.
+      const faseRaw = `${r.OBSERVACION_PAGO || ''}`.trim();
+      const faseMatch = faseRaw.toUpperCase().match(/FASE\s*(\d+)/);
+      const fase = faseMatch ? `FASE ${faseMatch[1]}` : (faseRaw || null);
+
       return {
         ...r,
         ESTADO_PAGO: pagado ? 'PAGADO' : 'NO PAGADO',
-        OBSERVACION: observacion || (pagado ? 'ACREDITADA' : estadoRaw)
+        OBSERVACION: observacion || (pagado ? 'ACREDITADA' : estadoRaw),
+        FASE: fase,
+        ETIQUETA_PROGRAMA: fase ? `JOVENES EN ACCION - ${fase}` : 'JOVENES EN ACCION'
       };
     });
 
