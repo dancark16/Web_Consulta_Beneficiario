@@ -1944,8 +1944,14 @@ main a.link-ver-reporte.btn-brand-yellow:hover {
   box-sizing: border-box !important;
 }
 
+.logo-link {
+  background-color: #ffffff !important;
+  border-radius: 10px !important;
+  padding: 8px 12px !important;
+}
+
 .logo-header {
-  height: 85px !important;
+  height: 70px !important;
   width: auto !important;
   object-fit: contain !important;
   display: block !important;

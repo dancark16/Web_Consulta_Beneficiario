@@ -1638,7 +1638,7 @@ async function exportarPDF() {
         const generarPDF = (logoDataUrl) => {
             // ── Cabecera blanca ───────────────────────────────────
             if (logoDataUrl) {
-                doc.addImage(logoDataUrl, 'PNG', 10, 8, 30, 15);
+                doc.addImage(logoDataUrl, 'PNG', 10, 6, 46, 9.25);
             }
 
             doc.setTextColor(20, 20, 20);
@@ -1648,7 +1648,7 @@ async function exportarPDF() {
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(80, 80, 80);
-            doc.text('Ministerio de Desarrollo Humano - El Nuevo Ecuador', ANCHO_PAGINA / 2, 21, { align: 'center' });
+            doc.text('Ministerio de Trabajo y Desarrollo Humano - El Nuevo Ecuador', ANCHO_PAGINA / 2, 21, { align: 'center' });
             doc.setFontSize(8);
             doc.setTextColor(120, 120, 120);
             doc.text(`Fecha: ${fecha}`, ANCHO_PAGINA - 10, 8, { align: 'right' });
@@ -1776,7 +1776,7 @@ async function exportarExcel() {
 
     try {
         const wb = new ExcelJS.Workbook();
-        wb.creator = 'Ministerio de Desarrollo Humano';
+        wb.creator = 'Ministerio de Trabajo y Desarrollo Humano';
         wb.created = new Date();
 
         const cedula = document.getElementById('cedula').value || 'Sin_Cedula';
@@ -1794,16 +1794,17 @@ async function exportarExcel() {
                 r.readAsDataURL(blob);
             });
             const logoId = wb.addImage({ base64, extension: 'png' });
-            ws.addImage(logoId, { tl: { col: 0, row: 0 }, br: { col: 2, row: 4 }, editAs: 'oneCell' });
+            ws.addImage(logoId, { tl: { col: 0, row: 0 }, ext: { width: 320, height: 64 }, editAs: 'oneCell' });
         } catch (_) { /* sin logo */ }
 
         // ── Encabezado institucional ──────────────────────────────────
         const headerArgb = '5A009D';  // morado principal
         const fillHeader = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + headerArgb } };
+        const fillLogo = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
 
-        // Fila 1 – título (A:B con fondo + C:N mergeado con texto)
-        ws.getCell(`A${fila}`).fill = fillHeader;
-        ws.getCell(`B${fila}`).fill = fillHeader;
+        // Fila 1 – título (A:B fondo blanco para el logo + C:N mergeado con texto)
+        ws.getCell(`A${fila}`).fill = fillLogo;
+        ws.getCell(`B${fila}`).fill = fillLogo;
         ws.mergeCells(`C${fila}:N${fila}`);
         const cTitulo = ws.getCell(`C${fila}`);
         cTitulo.value = 'REPORTE BENEFICIARIO HABILITADO';
@@ -1814,11 +1815,11 @@ async function exportarExcel() {
         fila++;
 
         // Fila 2 – subtítulo
-        ws.getCell(`A${fila}`).fill = fillHeader;
-        ws.getCell(`B${fila}`).fill = fillHeader;
+        ws.getCell(`A${fila}`).fill = fillLogo;
+        ws.getCell(`B${fila}`).fill = fillLogo;
         ws.mergeCells(`C${fila}:N${fila}`);
         const cSub = ws.getCell(`C${fila}`);
-        cSub.value = 'Ministerio de Desarrollo Humano - El Nuevo Ecuador';
+        cSub.value = 'Ministerio de Trabajo y Desarrollo Humano - El Nuevo Ecuador';
         cSub.font = { size: 10, color: { argb: 'FFFFFFFF' } };
         cSub.fill = fillHeader;
         cSub.alignment = { horizontal: 'center' };
@@ -1826,8 +1827,8 @@ async function exportarExcel() {
         fila++;
 
         // Fila 3 – fecha
-        ws.getCell(`A${fila}`).fill = fillHeader;
-        ws.getCell(`B${fila}`).fill = fillHeader;
+        ws.getCell(`A${fila}`).fill = fillLogo;
+        ws.getCell(`B${fila}`).fill = fillLogo;
         ws.mergeCells(`C${fila}:N${fila}`);
         const cFecha = ws.getCell(`C${fila}`);
         cFecha.value = `Fecha: ${fecha}`;
@@ -1994,7 +1995,7 @@ async function exportarHistorialPDF() {
 
         const generarPDF = (logoDataUrl) => {
             if (logoDataUrl) {
-                doc.addImage(logoDataUrl, 'PNG', 10, 8, 30, 15);
+                doc.addImage(logoDataUrl, 'PNG', 10, 6, 46, 9.25);
             }
 
             doc.setTextColor(20, 20, 20);
@@ -2004,7 +2005,7 @@ async function exportarHistorialPDF() {
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(80, 80, 80);
-            doc.text('Ministerio de Desarrollo Humano - El Nuevo Ecuador', ANCHO_PAGINA / 2, 21, { align: 'center' });
+            doc.text('Ministerio de Trabajo y Desarrollo Humano - El Nuevo Ecuador', ANCHO_PAGINA / 2, 21, { align: 'center' });
             doc.setFontSize(8);
             doc.setTextColor(120, 120, 120);
             doc.text(`Fecha: ${fecha}`, ANCHO_PAGINA - 10, 8, { align: 'right' });
@@ -2110,7 +2111,7 @@ async function exportarHistorialExcel() {
 
     try {
         const wb = new ExcelJS.Workbook();
-        wb.creator = 'Ministerio de Desarrollo Humano';
+        wb.creator = 'Ministerio de Trabajo y Desarrollo Humano';
         wb.created = new Date();
 
         const cedula = document.getElementById('cedula').value || 'Sin_Cedula';
@@ -2128,14 +2129,15 @@ async function exportarHistorialExcel() {
                 r.readAsDataURL(blob);
             });
             const logoId = wb.addImage({ base64, extension: 'png' });
-            ws.addImage(logoId, { tl: { col: 0, row: 0 }, br: { col: 2, row: 4 }, editAs: 'oneCell' });
+            ws.addImage(logoId, { tl: { col: 0, row: 0 }, ext: { width: 320, height: 64 }, editAs: 'oneCell' });
         } catch (_) { }
 
         const headerArgb = '5A009D';
         const fillHeader = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + headerArgb } };
+        const fillLogo = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
 
-        ws.getCell(`A${fila}`).fill = fillHeader;
-        ws.getCell(`B${fila}`).fill = fillHeader;
+        ws.getCell(`A${fila}`).fill = fillLogo;
+        ws.getCell(`B${fila}`).fill = fillLogo;
         ws.mergeCells(`C${fila}:N${fila}`);
         const cTitulo = ws.getCell(`C${fila}`);
         cTitulo.value = 'REPORTE HISTORIAL DE COBROS';
@@ -2145,19 +2147,19 @@ async function exportarHistorialExcel() {
         ws.getRow(fila).height = 26;
         fila++;
 
-        ws.getCell(`A${fila}`).fill = fillHeader;
-        ws.getCell(`B${fila}`).fill = fillHeader;
+        ws.getCell(`A${fila}`).fill = fillLogo;
+        ws.getCell(`B${fila}`).fill = fillLogo;
         ws.mergeCells(`C${fila}:N${fila}`);
         const cSub = ws.getCell(`C${fila}`);
-        cSub.value = 'Ministerio de Desarrollo Humano - El Nuevo Ecuador';
+        cSub.value = 'Ministerio de Trabajo y Desarrollo Humano - El Nuevo Ecuador';
         cSub.font = { size: 10, color: { argb: 'FFFFFFFF' } };
         cSub.fill = fillHeader;
         cSub.alignment = { horizontal: 'center' };
         ws.getRow(fila).height = 18;
         fila++;
 
-        ws.getCell(`A${fila}`).fill = fillHeader;
-        ws.getCell(`B${fila}`).fill = fillHeader;
+        ws.getCell(`A${fila}`).fill = fillLogo;
+        ws.getCell(`B${fila}`).fill = fillLogo;
         ws.mergeCells(`C${fila}:N${fila}`);
         const cFecha = ws.getCell(`C${fila}`);
         cFecha.value = `Fecha: ${fecha}`;
